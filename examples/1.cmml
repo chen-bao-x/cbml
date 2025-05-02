@@ -1,0 +1,18 @@
+use "./1.typedef.cbml"
+ 
+package = {
+    name = "new"
+    version = "0.1.0"
+    edition = "2021"
+}
+
+dependencies = [
+    { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" },
+    { name = "colored", varsion = "3.0.0", }
+]
+
+
+str: string 
+str = "string"
+num: number 
+num = -1324

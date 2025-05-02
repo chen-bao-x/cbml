@@ -1,0 +1,7 @@
+arr = [1,2,3,4,5,]
+arr_2 = [1,2,3,4,5,]
+arr_3 = [true,false,true,true,false]
+arr_4 = ["true","false","true","true","false"]
+arr_5 = [1,"true", 2, "false", 3, "true"]
+
+arr_any = [1, true , "true", [1,2,3], {name = "string"}]

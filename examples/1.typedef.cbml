@@ -1,0 +1,29 @@
+
+
+package: {
+    name: string default "hello"
+    version: string 
+    edition: string 
+}
+
+dependencie: [dependencie]
+
+struct dependencie_with_ssh {
+    name: string 
+    git: string 
+    branch: string 
+}
+
+struct dependencie_whith_version {
+    name:string 
+    varsion: string 
+}
+
+enum dependencie {
+    ssh({
+        name: string 
+        git: string 
+        branch: string 
+    }),
+    version(dependencie_whith_version),
+}
