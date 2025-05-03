@@ -1,0 +1,24 @@
+a: ?string 
+b = none
+
+c: ?number default 99
+
+d = default
+
+e : ?bool
+
+f: ?[number]
+f: ?[string]
+f: ?[bool]
+
+f: ?[[number]]
+f: ?[[string]]
+f: ?[[bool]]
+
+f: ?[[[number]]]
+f: ?[[[string]]]
+f: ?[[[bool]]]
+
+f: ?[[[[[[[[[[[[[[[[[[[[[[[[number]]]]]]]]]]]]]]]]]]]]]]]]
+f: ?[[[[[[[[[[[[[[[[[[[[[[[[string]]]]]]]]]]]]]]]]]]]]]]]]
+f: ?[[[[[[[[[[[[[[[[[[[[[[[[bool]]]]]]]]]]]]]]]]]]]]]]]]

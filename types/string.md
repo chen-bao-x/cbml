@@ -11,8 +11,13 @@ string
 hello, what is your name?
 my name is "hello" 
 ""
-字符串中可以使用的转义符号:
+
+\字符串中可以使用的转义符号:
 \n -> 换行符
 \r 
 \t 
 \u{HEX} -> unicode 示例: "\u{4F60}\u{597D}，\u{4E16}\u{754C}"  // "你好，世界"
+\\ -> \
+\" -> "
+\0 -> 空字符（Null，ASCII 0）
+

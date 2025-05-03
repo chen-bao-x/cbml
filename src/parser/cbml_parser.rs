@@ -53,6 +53,69 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
+    /// 解析单个语句，根据当前 Token 类型决定解析方式
+    fn parse_statement(&mut self) -> Result<Stmt, ParserError> {
+        dp(format!("parse_statement(&mut self)"));
+
+        _ = self.eat_zeor_or_multy(tk::NewLine);
+
+        let tok = self.peek().kind.clone();
+        match tok {
+            tk::Identifier(_) => {
+                let next_tok = self.peek_next(1);
+                if next_tok.kind.kind_is(&tk::Asign) {
+                    // 解析赋值语句
+
+                    return self.parse_asignment();
+                } else if next_tok.kind.kind_is(&tk::Colon) {
+                    // 解析结构体成员定义.
+
+                    let field_def = self.parse_struct_field_def()?;
+                    return Ok(Stmt::StructFieldDef(field_def));
+                } else if next_tok.kind.kind_is(&tk::LParen) {
+                    // 解析 enum literal
+
+                    let sdaf = self.parse_asignment()?;
+                    return Ok(sdaf);
+                } else {
+                    return Err(ParserError {
+                        message: format!(
+                            "need {:?} or {:?}, but found {:?}",
+                            tk::Asign,
+                            tk::Colon,
+                            next_tok.kind
+                        ),
+                        token: next_tok.clone().into(),
+                    });
+                }
+            }
+            tk::Use => self.parse_use(),
+            tk::Struct => return self.parse_struct_def(),
+            tk::Union => self.parse_union_def(),
+            tk::Enum => self.parse_enum_def(),
+            tk::LineComment(s) => {
+                self.consume(tk::LineComment("".into()))?;
+                return Ok(Stmt::LineComment(s));
+            }
+            tk::BlockComment(s) => {
+                self.consume(tk::BlockComment("".into()))?;
+                Ok(Stmt::BlockComment(s))
+            }
+            tk::DocComment(s) => {
+                self.consume(tk::DocComment("".into()))?;
+                Ok(Stmt::DocComment(s))
+            }
+            _ => {
+                dp(format!("parse_statement error: unkonow token {:?}", tok));
+                todo!();
+                return Err(ParserError::new(
+                    format!("parse_statement error: unkonow token {:?}", tok),
+                    Some(self.peek().clone()),
+                ));
+            }
+        }
+    }
+
     /// 类型标注
     fn parse_type_sign(&mut self) -> Result<CbmlType, ParserError> {
         // any | string | number | bool | identifier | Anonymous_optinal  | Anonymous_array | Anonymous_struct | Anonymous_union
@@ -243,6 +306,7 @@ impl<'a> CbmlParser<'a> {
 
         return Ok(elements);
     }
+
     fn parse_literal(&mut self) -> Result<Literal, ParserError> {
         // 解析字面量
         let tok = self.peek();
@@ -266,9 +330,9 @@ impl<'a> CbmlParser<'a> {
                 self.consume(tk::False)?;
                 return Ok(Literal::Boolean(false));
             }
-            tk::None => {
-                self.consume(tk::None)?;
-                return Ok(Literal::None);
+            tk::TkNone => {
+                self.consume(tk::TkNone)?;
+                return Ok(Literal::LiteralNone);
             }
 
             tk::Todo => {
@@ -358,14 +422,19 @@ impl<'a> CbmlParser<'a> {
             }
 
             tk::Identifier(name) => {
-                if let tk::LParen = self.peek_next(1).kind {
-                    // 解析 enum literally
+                let next = self.peek_next(1).kind.clone();
+                match next {
+                    tk::LParen => {
+                        // 解析 enum literal
 
-                    let enum_literal = self.parse_enum_literal()?;
-                    return Ok(enum_literal);
-                } else {
+                        let enum_literal = self.parse_enum_literal()?;
+                        return Ok(enum_literal);
+                    }
+                    _ => {
+                        println!("{:?}", self.peek());
+                        todo!();
+                    }
                 }
-                todo!();
             }
             _ => {
                 dp(format!("parse_literal error: unkonow token {:?}", tok));
@@ -380,16 +449,18 @@ impl<'a> CbmlParser<'a> {
 
     /// name = "hello"
     fn parse_asignment(&mut self) -> Result<Stmt, ParserError> {
+        // identifier asignment literal
         // 解析赋值语句
 
-        let name_tok = self.consume(tk::Identifier("".into()))?.kind.clone();
+        let name_tok = self.consume(tk::Identifier("".into()))?.kind.clone(); // identifier
 
         if let tk::Identifier(name) = name_tok {
             dp(format!("parse_asignment(&mut self)"));
 
-            self.consume(tk::Asign)?;
+            self.consume(tk::Asign)?; // asignment
 
-            let value = self.parse_literal()?;
+            let value = self.parse_literal()?; // literal
+
             dp(format!("parse_asignment(&mut self) value: {:?}", value));
 
             self.consume_stmt_end_token()?;
@@ -550,61 +621,6 @@ impl<'a> CbmlParser<'a> {
         return Ok(literals);
     }
 
-    fn parse_union_def(&mut self) -> Result<Stmt, ParserError> {
-        // union LParent typesign RParent identifier Assignment union_field{1,}
-        // union_field = pipe{1} literal
-
-        // 解析联合体定义
-        self.consume(tk::Union)?; // union
-
-        // typesign
-        let base_type: CbmlType = if let tk::LParen = self.peek().kind {
-            // 解析联合体的基本类型
-            self.consume(tk::LParen)?; // LParent
-            let base_type = self.parse_type_sign()?; // typesign
-            self.consume(tk::RParen)?; // RParent
-
-            base_type
-        } else {
-            return Err(ParserError {
-                message: format!(
-                    "parse_statement error: need {:?}, but found token {:?}",
-                    tk::LParen,
-                    self.peek()
-                ),
-                token: self.peek().clone().into(),
-            });
-        };
-
-        // identifier
-        let union_name: String = if let tk::Identifier(union_name) =
-            self.consume(tk::Identifier("".into()))?.kind.clone()
-        {
-            union_name
-        } else {
-            return Err(ParserError {
-                message: format!(
-                    "parse_statement error: need {:?}, but found token {:?}",
-                    tk::Identifier("".into()),
-                    self.peek()
-                ),
-                token: self.peek().clone().into(),
-            });
-        };
-
-        self.consume(tk::Asign)?; // Assignment
-
-        let alowd_values = self.parse_union_fields()?; // union_field{1,}
-
-        self.consume_stmt_end_token()?;
-
-        return Ok(Stmt::UnionDef(UnionTy {
-            name: union_name,
-            base_type: base_type,
-            alowd_values,
-        }));
-    }
-
     fn parse_use(&mut self) -> Result<Stmt, ParserError> {
         // 解析 use 语句
         self.consume(tk::Use)?;
@@ -620,71 +636,6 @@ impl<'a> CbmlParser<'a> {
                 ),
                 token: self.peek().clone().into(),
             });
-        }
-    }
-
-    // fn parse_asignment
-
-    /// 解析单个语句，根据当前 Token 类型决定解析方式
-    fn parse_statement(&mut self) -> Result<Stmt, ParserError> {
-        dp(format!("parse_statement(&mut self)"));
-
-        _ = self.eat_zeor_or_multy(tk::NewLine);
-
-        let tok = self.peek().kind.clone();
-        match tok {
-            tk::Identifier(_) => {
-                let next_tok = self.peek_next(1);
-                if next_tok.kind.kind_is(&tk::Asign) {
-                    // 解析赋值语句
-
-                    return self.parse_asignment();
-                } else if next_tok.kind.kind_is(&tk::Colon) {
-                    // 解析结构体成员定义.
-
-                    let field_def = self.parse_struct_field_def()?;
-                    return Ok(Stmt::StructFieldDef(field_def));
-                } else if next_tok.kind.kind_is(&tk::LParen) {
-                    // 解析 enum literal
-
-                    let sdaf = self.parse_asignment()?;
-                    return Ok(sdaf);
-                } else {
-                    return Err(ParserError {
-                        message: format!(
-                            "need {:?} or {:?}, but found {:?}",
-                            tk::Asign,
-                            tk::Colon,
-                            next_tok.kind
-                        ),
-                        token: next_tok.clone().into(),
-                    });
-                }
-            }
-            tk::Use => self.parse_use(),
-            tk::Struct => return self.parse_struct_def(),
-            tk::Union => self.parse_union_def(),
-            tk::Enum => self.parse_enum_def(),
-            tk::LineComment(s) => {
-                self.consume(tk::LineComment("".into()))?;
-                return Ok(Stmt::LineComment(s));
-            }
-            tk::BlockComment(s) => {
-                self.consume(tk::BlockComment("".into()))?;
-                Ok(Stmt::BlockComment(s))
-            }
-            tk::DocComment(s) => {
-                self.consume(tk::DocComment("".into()))?;
-                Ok(Stmt::DocComment(s))
-            }
-            _ => {
-                dp(format!("parse_statement error: unkonow token {:?}", tok));
-                todo!();
-                return Err(ParserError::new(
-                    format!("parse_statement error: unkonow token {:?}", tok),
-                    Some(self.peek().clone()),
-                ));
-            }
         }
     }
 
@@ -753,6 +704,61 @@ impl<'a> CbmlParser<'a> {
             //     token: Some(enum_name_tok.clone()),
             // });
         }
+    }
+
+    fn parse_union_def(&mut self) -> Result<Stmt, ParserError> {
+        // union LParent typesign RParent identifier Assignment union_field{1,}
+        // union_field = pipe{1} literal
+
+        // 解析联合体定义
+        self.consume(tk::Union)?; // union
+
+        // typesign
+        let base_type: CbmlType = if let tk::LParen = self.peek().kind {
+            // 解析联合体的基本类型
+            self.consume(tk::LParen)?; // LParent
+            let base_type = self.parse_type_sign()?; // typesign
+            self.consume(tk::RParen)?; // RParent
+
+            base_type
+        } else {
+            return Err(ParserError {
+                message: format!(
+                    "parse_statement error: need {:?}, but found token {:?}",
+                    tk::LParen,
+                    self.peek()
+                ),
+                token: self.peek().clone().into(),
+            });
+        };
+
+        // identifier
+        let union_name: String = if let tk::Identifier(union_name) =
+            self.consume(tk::Identifier("".into()))?.kind.clone()
+        {
+            union_name
+        } else {
+            return Err(ParserError {
+                message: format!(
+                    "parse_statement error: need {:?}, but found token {:?}",
+                    tk::Identifier("".into()),
+                    self.peek()
+                ),
+                token: self.peek().clone().into(),
+            });
+        };
+
+        self.consume(tk::Asign)?; // Assignment
+
+        let alowd_values = self.parse_union_fields()?; // union_field{1,}
+
+        self.consume_stmt_end_token()?;
+
+        return Ok(Stmt::UnionDef(UnionTy {
+            name: union_name,
+            base_type: base_type,
+            alowd_values,
+        }));
     }
 
     fn parse_enum_field(&mut self) -> Result<EnumFieldDefinition, ParserError> {

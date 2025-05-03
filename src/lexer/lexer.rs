@@ -1,6 +1,6 @@
-use std::num::ParseFloatError;
-use crate::dp;
 use super::token::{Token, TokenKind};
+use crate::dp;
+use std::num::ParseFloatError;
 
 #[derive(Debug)]
 enum State {
@@ -152,8 +152,24 @@ impl Lexer {
                             self.current.push(ch);
                         }
                         _ => {
+                            let 是负数吗: bool = {
+                                if &self.current[0..1] == "-" {
+                                    let _ = self.current.remove(0);
+                                    true
+                                } else {
+                                    false
+                                }
+                            };
+
                             let binary_value = u64::from_str_radix(&self.current[2..], 2)
                                 .map_err(|e| e.to_string())?;
+
+                            let binary_value = if 是负数吗 {
+                                (binary_value as f64) * (-1.0)
+                            } else {
+                                binary_value as f64
+                            };
+
                             let tok = Token::new(
                                 TokenKind::Number(binary_value as f64),
                                 self.line,
@@ -176,8 +192,26 @@ impl Lexer {
                     _ => {
                         dp(format!("hex {:?}", self.current));
 
-                        let hex_value = u64::from_str_radix(&self.current[2..], 16)
-                            .map_err(|e| e.to_string())?;
+                        let 是负数吗: bool = {
+                            if &self.current[0..1] == "-" {
+                                let _ = self.current.remove(0);
+                                true
+                            } else {
+                                false
+                            }
+                        };
+
+                        let hex_value: f64 = {
+                            let v = u64::from_str_radix(&self.current[2..], 16)
+                                .map_err(|e| e.to_string())?;
+
+                            if 是负数吗 {
+                                (v as f64) * (-1.0)
+                            } else {
+                                v as f64
+                            }
+                        };
+
                         let tok =
                             Token::new(TokenKind::Number(hex_value as f64), self.line, self.column);
 
@@ -253,13 +287,17 @@ impl Lexer {
                                         self.current.push('\n');
                                         self.advance();
                                     }
+                                    'r' => {
+                                        self.current.push('\r');
+                                        self.advance();
+                                    }
                                     't' => {
                                         self.current.push('\t');
                                         self.advance();
                                     }
                                     'u' => {
-                                        // Unicode 转义
-                                        self.current.push(ch);
+                                        // Unicode 转义 "\u{1F600}"
+                                        // self.current.push(ch);
                                         self.advance();
 
                                         let mut unicode = String::new();
@@ -278,7 +316,10 @@ impl Lexer {
                                                 next_ch
                                             ));
                                         }
-                                        for _ in 0..4 {
+                                        // for _ in 0..4 {
+                                        for _ in 0..10 {
+                                            // \u{1F600} // 大括号中的 hex number 字符数量暂时设置为不超过 10 个.
+
                                             if let Some(next_ch) = self.peek() {
                                                 if next_ch == '}' {
                                                     self.advance();
@@ -294,6 +335,10 @@ impl Lexer {
                                                 ));
                                             }
                                         }
+
+                                        println!("{:?}", self.current);
+                                        println!("{:?}", unicode);
+                                        // panic!();
 
                                         if let Ok(unicode) = u32::from_str_radix(&unicode, 16) {
                                             let sadf = match std::char::from_u32(unicode) {
@@ -313,6 +358,18 @@ impl Lexer {
                                                 unicode
                                             ));
                                         }
+                                    }
+                                    '\\' => {
+                                        self.current.push('\\');
+                                        self.advance();
+                                    }
+                                    '"' => {
+                                        self.current.push('\"');
+                                        self.advance();
+                                    }
+                                    '0' => {
+                                        self.current.push('\0');
+                                        self.advance();
                                     }
                                     _ => {
                                         self.current.push(ch);
@@ -421,7 +478,7 @@ impl Lexer {
                 match self.state {
                     State::InIdentifier => {
                         let tok = Token {
-                            kind: TokenKind::Identifier(self.current.clone()),
+                            kind: TokenKind::Identifier(self.current.clone()).handle_keyword(),
                             line: self.line,
                             column: self.column,
                         };
@@ -448,6 +505,72 @@ impl Lexer {
                     // State::InChar => {
                     //     tokens.push(Token::new(TokenKind::Invalid('\''), &self));
                     // }
+                    State::HexNumber => {
+                        let 是负数吗: bool = {
+                            if &self.current[0..1] == "-" {
+                                let _ = self.current.remove(0);
+                                true
+                            } else {
+                                false
+                            }
+                        };
+
+                        let hex_value: f64 = {
+                            let v = u64::from_str_radix(&self.current[2..], 16)
+                                .map_err(|e| e.to_string())?;
+
+                            if 是负数吗 {
+                                (v as f64) * (-1.0)
+                            } else {
+                                v as f64
+                            }
+                        };
+
+                        let tok =
+                            Token::new(TokenKind::Number(hex_value as f64), self.line, self.column);
+
+                        tokens.push(tok);
+                        self.current.clear();
+                    }
+
+                    State::BinarayNumber => {
+                        let 是负数吗: bool = {
+                            if &self.current[0..1] == "-" {
+                                let _ = self.current.remove(0);
+                                true
+                            } else {
+                                false
+                            }
+                        };
+
+                        let binary_value = u64::from_str_radix(&self.current[2..], 2)
+                            .map_err(|e| e.to_string())?;
+
+                        let binary_value = if 是负数吗 {
+                            (binary_value as f64) * (-1.0)
+                        } else {
+                            binary_value as f64
+                        };
+
+                        let tok = Token::new(
+                            TokenKind::Number(binary_value as f64),
+                            self.line,
+                            self.column,
+                        );
+
+                        tokens.push(tok);
+
+                        self.current.clear();
+                    }
+
+                    State::InLineComment => {
+                        let tok = Token::new(
+                            TokenKind::LineComment(self.current.clone()),
+                            self.line,
+                            self.column,
+                        );
+                        tokens.push(tok);
+                    }
                     _ => {
                         dp(format!("{:?}", self.state));
                         dp(format!("{:?}", self.current));

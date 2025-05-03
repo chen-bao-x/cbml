@@ -51,7 +51,7 @@ pub enum Literal {
         field_name: String,
         literal: Box<Literal>,
     },
-    None, // none
+    LiteralNone, // none
     Todo,
     Default,
 }
@@ -67,7 +67,7 @@ impl Literal {
             (Boolean(_), Boolean(_)) => true,
             (Array(_), Array(_)) => true,
             (Struct(_), Struct(_)) => true,
-            (None, None) => true,
+            (LiteralNone, LiteralNone) => true,
             (Todo, Todo) => true,
             (Default, Default) => true,
             (Union(_), Union(_)) => true,
@@ -123,7 +123,7 @@ impl Literal {
     }
 
     pub fn from_vec_literal(arr: &[Literal]) -> TypeInference {
-        let base: &Literal = Self::skip_none(arr).unwrap_or(&Literal::None);
+        let base: &Literal = Self::skip_none(arr).unwrap_or(&Literal::LiteralNone);
 
         return match base {
             Literal::String(_) => TypeInference::Inferenced(CbmlType::String),
@@ -157,7 +157,7 @@ impl Literal {
 
                 return TypeInference::Inferenced(CbmlType::Struct(asdf));
             }
-            Literal::None => TypeInference::InferenceUnkonw,
+            Literal::LiteralNone => TypeInference::InferenceUnkonw,
             Literal::Todo => todo!(),
             Literal::Default => todo!(),
             Literal::Union(literals) => {
@@ -192,7 +192,7 @@ impl Literal {
 
             if let Some(l) = arr.get(count) {
                 match l {
-                    Literal::None | Literal::Todo | Literal::Default => {
+                    Literal::LiteralNone | Literal::Todo | Literal::Default => {
                         continue;
                     }
                     _ => return Some(l),

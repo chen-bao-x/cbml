@@ -1,14 +1,16 @@
 mod lexer;
 mod parser;
 
-fn main() {}
+fn main() {
+    tests::test_parser();
+}
 
-#[cfg(test)]
+// #[cfg(test)]
 mod tests {
 
     use crate::{dp, lexer::tokenizer};
 
-    #[test]
+    // #[test]
     pub fn test_parser() {
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
 
@@ -16,7 +18,13 @@ mod tests {
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
 
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/3_enum.cbml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/3_enum.cbml");
+
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/4_number.cbml");
+
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/5_string.cbml");
+
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/6_optinal.cbml");
     }
 
     fn asdfasdfsdf(path: &str) {
@@ -25,7 +33,12 @@ mod tests {
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
 
-        let tokens = tokenizer(&code).unwrap();
+        let tokens = tokenizer(&code)
+            .map_err(|e| {
+                println!("{}", e);
+                return e;
+            })
+            .unwrap();
 
         dp(format!("tokens: {:?}", tokens));
 

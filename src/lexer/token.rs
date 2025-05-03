@@ -49,7 +49,7 @@ pub enum TokenKind {
     // key words
     True,    // true
     False,   // false
-    None,    // none
+    TkNone,    // none
     Any,     // any
     Struct,  // struct
     Union,   // union
@@ -73,7 +73,7 @@ impl TokenKind {
             TokenKind::Identifier(s) => match s.as_str() {
                 "true" => TokenKind::True,
                 "false" => TokenKind::False,
-                "none" => TokenKind::None,
+                "none" => TokenKind::TkNone,
                 "any" => TokenKind::Any,
                 "struct" => TokenKind::Struct,
                 "union" => TokenKind::Union,
@@ -113,7 +113,7 @@ impl TokenKind {
             (TokenKind::NewLine, TokenKind::NewLine) => true,
             (TokenKind::True, TokenKind::True) => true,
             (TokenKind::False, TokenKind::False) => true,
-            (TokenKind::None, TokenKind::None) => true,
+            (TokenKind::TkNone, TokenKind::TkNone) => true,
             (TokenKind::Any, TokenKind::Any) => true,
             (TokenKind::Struct, TokenKind::Struct) => true,
             (TokenKind::Union, TokenKind::Union) => true,
