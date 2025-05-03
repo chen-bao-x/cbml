@@ -123,7 +123,9 @@ impl TokenKind {
             (TokenKind::StringTy, TokenKind::StringTy) => true,
             (TokenKind::NumberTy, TokenKind::NumberTy) => true,
             (TokenKind::BooleanTy, TokenKind::BooleanTy) => true,
-
+            (TokenKind::Enum, TokenKind::Enum) => true,
+            (TokenKind::EOF, TokenKind::EOF) => true,
+              
             _ => false,
         }
     }

@@ -53,6 +53,7 @@ impl<'a> CbmlParser<'a> {
     }
 
     fn parse_type_sign(&mut self) -> Result<CbmlType, ParserError> {
+        println!("parse_type_sign(&mut self)");
         // 解析类型声明
         let tok = self.peek();
         match tok.kind.clone() {
@@ -103,6 +104,8 @@ impl<'a> CbmlParser<'a> {
                 });
             }
             TokenKind::LBrace => {
+                // 解析匿名结构体.
+
                 // 结构体类型
                 self.consume(TokenKind::LBrace)?;
 
@@ -132,7 +135,7 @@ impl<'a> CbmlParser<'a> {
                         break;
                     }
 
-                    let field = self.parse_field_def()?;
+                    let field = self.parse_struct_field_def()?;
                     fields.push(field);
 
                     count += 1;
@@ -349,7 +352,7 @@ impl<'a> CbmlParser<'a> {
             }
         }
     }
-    fn parse_field_def(&mut self) -> Result<StructFieldDefinition, ParserError> {
+    fn parse_struct_field_def(&mut self) -> Result<StructFieldDefinition, ParserError> {
         // 解析字段定义
         let name_tok = self.consume(TokenKind::Identifier("".into()))?;
         if let TokenKind::Identifier(name) = name_tok.kind.clone() {
@@ -379,6 +382,8 @@ impl<'a> CbmlParser<'a> {
             ));
         }
     }
+
+    /// 解析使用 struct name { } 这种方式定义的结构体.
     fn parse_struct_def(&mut self) -> Result<Stmt, ParserError> {
         // 解析结构体定义
 
@@ -415,7 +420,7 @@ impl<'a> CbmlParser<'a> {
                     break;
                 }
 
-                let field = self.parse_field_def()?;
+                let field = self.parse_struct_field_def()?;
                 fields.push(field);
                 count += 1;
             }
@@ -511,7 +516,7 @@ impl<'a> CbmlParser<'a> {
                 if next_tok.kind.kind_is(&TokenKind::Asign) {
                     return self.parse_asignment();
                 } else if next_tok.kind.kind_is(&TokenKind::Colon) {
-                    let field_def = self.parse_field_def()?;
+                    let field_def = self.parse_struct_field_def()?;
                     return Ok(Stmt::FieldDef(field_def));
                 } else {
                     return Err(ParserError {
@@ -528,7 +533,9 @@ impl<'a> CbmlParser<'a> {
             TokenKind::Use => self.parse_use(),
             TokenKind::Struct => return self.parse_struct_def(),
             TokenKind::Union => self.parse_union_def(),
-            TokenKind::Enum => self.parse_enum_def(),
+            TokenKind::Enum => {
+                return Ok(self.parse_enum_def().unwrap());
+            }
             _ => {
                 println!("parse_statement error: unkonow token {:?}", tok);
                 todo!();
@@ -544,11 +551,15 @@ impl<'a> CbmlParser<'a> {
         // enum identifier LBrace newline{0,} enum_field{0,} RBrace
         // enum_field = newline{0,} identifier LParent typedef RParent newline
 
+        println!("parse_enum_def(&mut self)");
+
         self.consume(TokenKind::Enum)?; // enum
+
         let enum_name_tok = self.consume(TokenKind::Identifier("".into()))?; // identifier
 
         if let TokenKind::Identifier(enum_name) = enum_name_tok.kind.clone() {
             self.consume(TokenKind::LBrace)?; // LBrace
+
             self.eat_zeor_or_multy(TokenKind::NewLine)?; // newline{0,}
 
             let mut fields: Vec<EnumFieldDefinition> = vec![];
@@ -558,45 +569,38 @@ impl<'a> CbmlParser<'a> {
 
                 let mut count = 0;
                 while !self.is_at_end() {
-                    if count > 0 {
-                        let k = self.peek().kind.clone();
-                        match k {
-                            TokenKind::Comma => {
-                                self.consume(TokenKind::Comma)?;
-                            }
-                            TokenKind::NewLine => {
-                                self.consume(TokenKind::NewLine)?;
-                            }
-                            _ => {
-                                break;
-                            }
-                        }
-                    }
-
-                    if let TokenKind::LBrace = self.peek().kind.clone() {
+                    if let TokenKind::RBrace = self.peek().kind.clone() {
                         break;
                     }
 
-                    _ = self.eat_zeor_or_multy(TokenKind::NewLine)?;
+                    // let field_name_tok = self.consume(TokenKind::Identifier("".into()))?;
 
-                    let field_name_tok = self.consume(TokenKind::Identifier("".into()))?;
-                    if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
-                        self.consume(TokenKind::LParen)?;
+                    let asdf = self.parse_enum_field()?;
+                    fields.push(asdf);
 
-                        let ty = self.parse_type_sign()?;
+                    
+                    // let field_name_tok = self.consume(TokenKind::Identifier("".into())).unwrap();
+                    // if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
+                    //     self.consume(TokenKind::LParen)?;
 
-                        self.consume(TokenKind::RParen)?;
+                    //     let ty = self.parse_type_sign()?;
 
-                        fields.push(EnumFieldDefinition {
-                            name: field_name,
-                            ty,
-                        });
-                    } else {
-                        panic!("这是逻辑上不可能出现的错误.")
-                    }
+                    //     self.consume(TokenKind::RParen)?;
+
+                    //     let e = EnumFieldDefinition {
+                    //         name: field_name,
+                    //         ty,
+                    //     };
+                    //     println!("{:?}", e);
+                    //     fields.push(e);
+                    // } else {
+                    //     panic!("这是逻辑上不可能出现的错误.")
+                    // }
                 }
             }
+
             self.consume(TokenKind::RBrace)?;
+
             let enum_type = EnumTy {
                 name: enum_name,
                 fields,
@@ -608,6 +612,32 @@ impl<'a> CbmlParser<'a> {
             //     message: format!("这是逻辑上不可能出现的错误"),
             //     token: Some(enum_name_tok.clone()),
             // });
+        }
+    }
+
+    fn parse_enum_field(&mut self) -> Result<EnumFieldDefinition, ParserError> {
+        // enum_field =   identifier LParent typedef RParent newline
+
+        // let field_name_tok = self.consume(TokenKind::Identifier("".into()))?; // identifier
+        let field_name_tok = self.consume(TokenKind::Identifier("".into())).unwrap();
+
+        if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
+            self.consume(TokenKind::LParen)?; // LParent
+
+            let ty = self.parse_type_sign()?; // typedef
+
+            self.consume(TokenKind::RParen)?;
+
+            self.consume(TokenKind::NewLine)?;
+
+            let e = EnumFieldDefinition {
+                name: field_name,
+                ty,
+            };
+            println!("{:?}", e);
+            return Ok(e);
+        } else {
+            panic!("这是逻辑上不可能出现的错误.")
         }
     }
 }
@@ -710,9 +740,11 @@ mod tests {
     #[test]
     fn test_parser() {
         // let code = std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml").unwrap();
-        // let code = std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml") .unwrap();
+        let code =
+            std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml")
+                .unwrap();
+        // let code = CODE;
 
-        let code = CODE;
         let tokens = tokenizer(&code).unwrap();
         println!("tokens: {:?}", tokens);
         let mut parser = CbmlParser::new(&tokens);
@@ -731,37 +763,4 @@ mod tests {
             }
         }
     }
-
-    const CODE: &str = r##"
-    
-
-package: {
-    name: string default "hello"
-    version: string 
-    edition: string 
-}
-
-dependencie: [dependencie]
-
-struct dependencie_with_ssh {
-    name: string 
-    git: string 
-    branch: string 
-}
-
-struct dependencie_whith_version {
-    name:string 
-    varsion: string 
-}
-
-enum dependencie {
-    ssh({
-        name: string 
-        git: string 
-        branch: string 
-    }),
-    version(dependencie_whith_version),
-}
-
-    "##;
 }
