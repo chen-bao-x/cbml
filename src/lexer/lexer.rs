@@ -328,7 +328,7 @@ impl Lexer {
                             // 结束注释
 
                             let tok = Token::new(
-                                TokenKind::LineCommen(self.current.clone()),
+                                TokenKind::LineComment(self.current.clone()),
                                 self.line,
                                 self.column,
                             );
@@ -366,7 +366,7 @@ impl Lexer {
                         '\n' => {
                             // 结束注释
                             let tok = Token::new(
-                                TokenKind::DocCommen(self.current.clone()),
+                                TokenKind::DocComment(self.current.clone()),
                                 self.line,
                                 self.column,
                             );
@@ -391,7 +391,7 @@ impl Lexer {
                                     self.current.push('/');
 
                                     let tok = Token::new(
-                                        TokenKind::BlockCommen(self.current.clone()),
+                                        TokenKind::BlockComment(self.current.clone()),
                                         self.line,
                                         self.column,
                                     );

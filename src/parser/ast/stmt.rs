@@ -14,6 +14,10 @@ pub enum Stmt {
     StructDef(StructTy),
     EnumDef(EnumTy), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
     UnionDef(UnionTy), // 具名 union
+
+    LineComment(String),
+    BlockComment(String),
+    DocComment(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]

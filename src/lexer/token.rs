@@ -27,9 +27,9 @@ pub enum TokenKind {
     String(String), // staring literal
     Number(f64),    // number literal 十进制 二进制 十六进制 写法.
 
-    LineCommen(String),
-    BlockCommen(String),
-    DocCommen(String),
+    LineComment(String),
+    BlockComment(String),
+    DocComment(String),
 
     Identifier(String),
 
@@ -96,9 +96,9 @@ impl TokenKind {
             (TokenKind::Number(_), TokenKind::Number(_)) => true,
             (TokenKind::Identifier(_), TokenKind::Identifier(_)) => true,
             (TokenKind::Invalid(_), TokenKind::Invalid(_)) => true,
-            (TokenKind::LineCommen(_), TokenKind::LineCommen(_)) => true,
-            (TokenKind::BlockCommen(_), TokenKind::BlockCommen(_)) => true,
-            (TokenKind::DocCommen(_), TokenKind::DocCommen(_)) => true,
+            (TokenKind::LineComment(_), TokenKind::LineComment(_)) => true,
+            (TokenKind::BlockComment(_), TokenKind::BlockComment(_)) => true,
+            (TokenKind::DocComment(_), TokenKind::DocComment(_)) => true,
             (TokenKind::LParen, TokenKind::LParen) => true,
             (TokenKind::RParen, TokenKind::RParen) => true,
             (TokenKind::LBracket, TokenKind::LBracket) => true,

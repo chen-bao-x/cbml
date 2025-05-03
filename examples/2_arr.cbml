@@ -1,3 +1,11 @@
+// line comment 
+
+/// doc comment 
+
+/* block 
+comment
+*/
+
 arr = [1,2,3,4,5,
 
 ]

@@ -4,7 +4,7 @@ use cbml_parser::CbmlParser;
 use crate::lexer::token::Token;
 
 mod ast;
-mod cbml_parser;
+pub mod cbml_parser;
 mod typedef;
 
 /// 解析 Token 列表并返回 AST

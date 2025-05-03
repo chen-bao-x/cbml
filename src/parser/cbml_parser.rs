@@ -2,8 +2,9 @@ use super::{
     ParserError,
     ast::stmt::{Asignment, CbmlType, Literal, Stmt, StructFieldDefinition, StructTy, UnionTy},
 };
+use crate::lexer::token::TokenKind as tk;
 use crate::{
-    lexer::token::{Token, TokenKind},
+    lexer::token::Token,
     parser::ast::stmt::{EnumFieldDefinition, EnumTy},
 };
 
@@ -20,7 +21,8 @@ impl<'a> CbmlParser<'a> {
         CbmlParser {
             tokens,
             current_position: 0,
-            eof: Token::new(crate::lexer::token::TokenKind::EOF, 0, 0),
+
+            eof: Token::new(tk::EOF, 0, 0),
         }
     }
 
@@ -31,7 +33,7 @@ impl<'a> CbmlParser<'a> {
 
         while !self.is_at_end() {
             println!("parse(&mut self) current: {:?}", self.peek());
-            _ = self.eat_zeor_or_multy(TokenKind::NewLine);
+            _ = self.eat_zeor_or_multy(tk::NewLine);
 
             let re = self.parse_statement();
             match re {
@@ -41,7 +43,7 @@ impl<'a> CbmlParser<'a> {
                     self.current_position += 1; // 移动到下一个 Token
                 }
             }
-            _ = self.eat_zeor_or_multy(TokenKind::NewLine);
+            _ = self.eat_zeor_or_multy(tk::NewLine);
         }
 
         if errors.is_empty() {
@@ -59,52 +61,52 @@ impl<'a> CbmlParser<'a> {
         // 解析类型声明
         let tok = self.peek();
         match tok.kind.clone() {
-            TokenKind::Any => {
-                self.consume(TokenKind::Any)?;
+            tk::Any => {
+                self.consume(tk::Any)?;
                 return Ok(CbmlType::Any);
             }
-            TokenKind::StringTy => {
-                self.consume(TokenKind::StringTy)?;
+            tk::StringTy => {
+                self.consume(tk::StringTy)?;
                 return Ok(CbmlType::String);
             }
-            TokenKind::NumberTy => {
-                self.consume(TokenKind::NumberTy)?;
+            tk::NumberTy => {
+                self.consume(tk::NumberTy)?;
                 return Ok(CbmlType::Number);
             }
-            TokenKind::BooleanTy => {
-                self.consume(TokenKind::BooleanTy)?;
+            tk::BooleanTy => {
+                self.consume(tk::BooleanTy)?;
                 return Ok(CbmlType::Boolean);
             }
-            TokenKind::Identifier(name) => {
-                self.consume(TokenKind::Identifier("".into()))?;
+            tk::Identifier(name) => {
+                self.consume(tk::Identifier("".into()))?;
 
                 return Ok(CbmlType::Custom(name));
             }
-            TokenKind::QuestionMark => {
+            tk::QuestionMark => {
                 // 可选类型
-                self.consume(TokenKind::QuestionMark)?;
+                self.consume(tk::QuestionMark)?;
                 let inner_type = self.parse_type_sign()?;
                 return Ok(CbmlType::Optional {
                     ty: Box::new(inner_type),
                 });
             }
-            TokenKind::LBracket => {
+            tk::LBracket => {
                 // 匿名数组
-                self.consume(TokenKind::LBracket)?;
+                self.consume(tk::LBracket)?;
 
                 let inner_type = self.parse_type_sign()?;
 
-                self.consume(TokenKind::RBracket)?;
+                self.consume(tk::RBracket)?;
 
                 return Ok(CbmlType::Array {
                     inner_type: Box::new(inner_type),
                 });
             }
-            TokenKind::LBrace => {
+            tk::LBrace => {
                 // 解析匿名结构体.
 
                 // 结构体类型
-                self.consume(TokenKind::LBrace)?;
+                self.consume(tk::LBrace)?;
 
                 let mut fields: Vec<StructFieldDefinition> = vec![];
                 let mut count = 0;
@@ -113,11 +115,11 @@ impl<'a> CbmlParser<'a> {
                     if count > 0 {
                         let k = self.peek().kind.clone();
                         match k {
-                            TokenKind::Comma => {
-                                self.consume(TokenKind::Comma)?;
+                            tk::Comma => {
+                                self.consume(tk::Comma)?;
                             }
-                            TokenKind::NewLine => {
-                                self.consume(TokenKind::NewLine)?;
+                            tk::NewLine => {
+                                self.consume(tk::NewLine)?;
                             }
 
                             _ => {
@@ -126,9 +128,9 @@ impl<'a> CbmlParser<'a> {
                         }
                     }
 
-                    _ = self.eat_zeor_or_multy(TokenKind::NewLine)?;
+                    _ = self.eat_zeor_or_multy(tk::NewLine)?;
 
-                    if let TokenKind::RBrace = self.peek().kind {
+                    if let tk::RBrace = self.peek().kind {
                         break;
                     }
 
@@ -138,14 +140,14 @@ impl<'a> CbmlParser<'a> {
                     count += 1;
                 }
 
-                self.consume(TokenKind::RBrace)?;
+                self.consume(tk::RBrace)?;
                 let t = CbmlType::Struct(fields);
                 return Ok(t);
             }
 
             x => {
                 match x {
-                    TokenKind::Pipe => {
+                    tk::Pipe => {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
@@ -159,7 +161,7 @@ impl<'a> CbmlParser<'a> {
                 };
 
                 match self.peek_next(1).kind.clone() {
-                    TokenKind::Pipe => {
+                    tk::Pipe => {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
@@ -196,14 +198,14 @@ impl<'a> CbmlParser<'a> {
         // RBracket = "]"
         // Coma = ","
 
-        self.consume(TokenKind::LBracket)?; // LBracket
+        self.consume(tk::LBracket)?; // LBracket
 
         let mut elements: Vec<Literal> = Vec::<Literal>::new();
 
-        if let TokenKind::RBracket = self.peek().kind {
+        if let tk::RBracket = self.peek().kind {
             //  空数组  [ ]
 
-            self.consume(TokenKind::RBracket)?;
+            self.consume(tk::RBracket)?;
             return Ok(elements);
         }
 
@@ -214,8 +216,8 @@ impl<'a> CbmlParser<'a> {
             }
             let mut s: State = State::NeedLiteral;
             while !self.is_at_end() {
-                self.eat_zeor_or_multy(TokenKind::NewLine)?;
-                if let TokenKind::RBracket = self.peek().kind {
+                self.eat_zeor_or_multy(tk::NewLine)?;
+                if let tk::RBracket = self.peek().kind {
                     break; // array literal ends.
                 }
 
@@ -227,17 +229,17 @@ impl<'a> CbmlParser<'a> {
                         s = State::NeedComa;
                     }
                     State::NeedComa => {
-                        self.consume(TokenKind::Comma)?;
+                        self.consume(tk::Comma)?;
                         s = State::NeedLiteral;
                     }
                 }
             }
         }
 
-        self.eat_zeor_or_multy(TokenKind::NewLine)?; // NewLine{0,}
-        _ = self.consume(TokenKind::Comma); // Coma{0,1}
-        self.eat_zeor_or_multy(TokenKind::NewLine)?; // NewLine{0,}
-        self.consume(TokenKind::RBracket)?; // RBracket
+        self.eat_zeor_or_multy(tk::NewLine)?; // NewLine{0,}
+        _ = self.consume(tk::Comma); // Coma{0,1}
+        self.eat_zeor_or_multy(tk::NewLine)?; // NewLine{0,}
+        self.consume(tk::RBracket)?; // RBracket
 
         return Ok(elements);
     }
@@ -245,39 +247,39 @@ impl<'a> CbmlParser<'a> {
         // 解析字面量
         let tok = self.peek();
         match tok.kind.clone() {
-            TokenKind::String(s) => {
+            tk::String(s) => {
                 let a = Literal::String(s.clone());
-                self.consume(TokenKind::String(s.clone()))?;
+                self.consume(tk::String(s.clone()))?;
                 return Ok(a);
             }
-            TokenKind::Number(n) => {
-                self.consume(TokenKind::Number(n.clone()))?;
+            tk::Number(n) => {
+                self.consume(tk::Number(n.clone()))?;
 
                 let a = Literal::Number(n.clone());
                 return Ok(a);
             }
-            TokenKind::True => {
-                self.consume(TokenKind::True)?;
+            tk::True => {
+                self.consume(tk::True)?;
                 return Ok(Literal::Boolean(true));
             }
-            TokenKind::False => {
-                self.consume(TokenKind::False)?;
+            tk::False => {
+                self.consume(tk::False)?;
                 return Ok(Literal::Boolean(false));
             }
-            TokenKind::None => {
-                self.consume(TokenKind::None)?;
+            tk::None => {
+                self.consume(tk::None)?;
                 return Ok(Literal::None);
             }
 
-            TokenKind::Todo => {
-                self.consume(TokenKind::Todo)?;
+            tk::Todo => {
+                self.consume(tk::Todo)?;
                 return Ok(Literal::Todo);
             }
-            TokenKind::Default => {
-                self.consume(TokenKind::Default)?;
+            tk::Default => {
+                self.consume(tk::Default)?;
                 return Ok(Literal::Default);
             }
-            TokenKind::LBracket => {
+            tk::LBracket => {
                 // LBracket literal element{0,} coma{0,1} RBracket
                 // element = Coma literal
                 // 数组字面量
@@ -285,11 +287,11 @@ impl<'a> CbmlParser<'a> {
                 let arr = self.parse_array_literal()?;
                 return Ok(Literal::Array(arr));
             }
-            TokenKind::LBrace => {
+            tk::LBrace => {
                 // 结构体字面量
-                self.consume(TokenKind::LBrace)?;
+                self.consume(tk::LBrace)?;
 
-                self.eat_zeor_or_multy(TokenKind::NewLine)?; // 可有可无的换行符.
+                self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
 
                 let mut fields: Vec<Asignment> = vec![];
 
@@ -298,30 +300,30 @@ impl<'a> CbmlParser<'a> {
                     // 上一个字段结束
                     if count > 0 {
                         let k = self.peek().kind.clone();
-                        if k.kind_is(&TokenKind::Comma) {
-                            self.consume(TokenKind::Comma)?;
-                        } else if k.kind_is(&TokenKind::NewLine) {
-                            self.consume(TokenKind::NewLine)?;
+                        if k.kind_is(&tk::Comma) {
+                            self.consume(tk::Comma)?;
+                        } else if k.kind_is(&tk::NewLine) {
+                            self.consume(tk::NewLine)?;
                         }
                     }
 
-                    _ = self.eat_zeor_or_multy(TokenKind::NewLine)?; // 可有可无的换行符.
+                    _ = self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
 
                     let tok = self.peek();
                     match tok.kind.clone() {
-                        TokenKind::RBrace => {
+                        tk::RBrace => {
                             // 结构体结束
 
                             break;
                         }
 
-                        TokenKind::Identifier(_) => {
+                        tk::Identifier(_) => {
                             // 解析结构体字段
 
-                            let name_tok = self.consume(TokenKind::Identifier("".into()))?.clone();
+                            let name_tok = self.consume(tk::Identifier("".into()))?.clone();
 
-                            if let TokenKind::Identifier(name) = name_tok.kind.clone() {
-                                self.consume(TokenKind::Asign)?;
+                            if let tk::Identifier(name) = name_tok.kind.clone() {
+                                self.consume(tk::Asign)?;
 
                                 let value = self.parse_literal()?;
 
@@ -350,7 +352,7 @@ impl<'a> CbmlParser<'a> {
                     count += 1;
                 }
 
-                self.consume(TokenKind::RBrace)?;
+                self.consume(tk::RBrace)?;
 
                 return Ok(Literal::Struct(fields));
             }
@@ -369,12 +371,12 @@ impl<'a> CbmlParser<'a> {
     fn parse_asignment(&mut self) -> Result<Stmt, ParserError> {
         // 解析赋值语句
 
-        let name_tok = self.consume(TokenKind::Identifier("".into()))?.kind.clone();
+        let name_tok = self.consume(tk::Identifier("".into()))?.kind.clone();
 
-        if let TokenKind::Identifier(name) = name_tok {
+        if let tk::Identifier(name) = name_tok {
             println!("parse_asignment(&mut self)");
 
-            self.consume(TokenKind::Asign)?;
+            self.consume(tk::Asign)?;
 
             let value = self.parse_literal()?;
             println!("parse_asignment(&mut self) value: {:?}", value);
@@ -402,8 +404,8 @@ impl<'a> CbmlParser<'a> {
         // 解析默认值
         let tok = self.peek();
         match tok.kind.clone() {
-            TokenKind::Default => {
-                self.consume(TokenKind::Default)?;
+            tk::Default => {
+                self.consume(tk::Default)?;
 
                 let value = self.parse_literal()?;
                 return Ok(Some(value));
@@ -415,9 +417,9 @@ impl<'a> CbmlParser<'a> {
     }
     fn parse_struct_field_def(&mut self) -> Result<StructFieldDefinition, ParserError> {
         // 解析字段定义
-        let name_tok = self.consume(TokenKind::Identifier("".into()))?;
-        if let TokenKind::Identifier(name) = name_tok.kind.clone() {
-            self.consume(TokenKind::Colon)?;
+        let name_tok = self.consume(tk::Identifier("".into()))?;
+        if let tk::Identifier(name) = name_tok.kind.clone() {
+            self.consume(tk::Colon)?;
 
             let field_type = self.parse_type_sign()?;
 
@@ -448,12 +450,10 @@ impl<'a> CbmlParser<'a> {
     fn parse_struct_def(&mut self) -> Result<Stmt, ParserError> {
         // 解析结构体定义
 
-        self.consume(TokenKind::Struct)?;
+        self.consume(tk::Struct)?;
 
-        if let TokenKind::Identifier(name) =
-            self.consume(TokenKind::Identifier("".into()))?.kind.clone()
-        {
-            self.consume(TokenKind::LBrace)?;
+        if let tk::Identifier(name) = self.consume(tk::Identifier("".into()))?.kind.clone() {
+            self.consume(tk::LBrace)?;
 
             let mut fields: Vec<StructFieldDefinition> = vec![];
             let mut count = 0;
@@ -462,11 +462,11 @@ impl<'a> CbmlParser<'a> {
                 if count > 0 {
                     let k = self.peek().kind.clone();
                     match k {
-                        TokenKind::Comma => {
-                            self.consume(TokenKind::Comma)?;
+                        tk::Comma => {
+                            self.consume(tk::Comma)?;
                         }
-                        TokenKind::NewLine => {
-                            self.consume(TokenKind::NewLine)?;
+                        tk::NewLine => {
+                            self.consume(tk::NewLine)?;
                         }
 
                         _ => {
@@ -475,9 +475,9 @@ impl<'a> CbmlParser<'a> {
                     }
                 }
 
-                _ = self.eat_zeor_or_multy(TokenKind::NewLine)?;
+                _ = self.eat_zeor_or_multy(tk::NewLine)?;
 
-                if let TokenKind::RBrace = self.peek().kind {
+                if let tk::RBrace = self.peek().kind {
                     break;
                 }
 
@@ -486,7 +486,7 @@ impl<'a> CbmlParser<'a> {
                 count += 1;
             }
 
-            self.consume(TokenKind::RBrace)?;
+            self.consume(tk::RBrace)?;
 
             return Ok(Stmt::StructDef(StructTy {
                 name,
@@ -514,13 +514,13 @@ impl<'a> CbmlParser<'a> {
 
         loop {
             if count == 0 {
-                _ = self.consume(TokenKind::Pipe); // 第一个 pipe 符号可有可无.
+                _ = self.consume(tk::Pipe); // 第一个 pipe 符号可有可无.
 
                 let literal = self.parse_literal()?;
                 literals.push(literal);
             } else {
-                if self.peek().kind.clone().kind_is(&TokenKind::Pipe) {
-                    self.consume(TokenKind::Pipe)?;
+                if self.peek().kind.clone().kind_is(&tk::Pipe) {
+                    self.consume(tk::Pipe)?;
                     let literal = self.parse_literal()?;
                     literals.push(literal);
                 } else {
@@ -539,21 +539,21 @@ impl<'a> CbmlParser<'a> {
         // union_field = pipe{1} literal
 
         // 解析联合体定义
-        self.consume(TokenKind::Union)?; // union
+        self.consume(tk::Union)?; // union
 
         // typesign
-        let base_type: CbmlType = if let TokenKind::LParen = self.peek().kind {
+        let base_type: CbmlType = if let tk::LParen = self.peek().kind {
             // 解析联合体的基本类型
-            self.consume(TokenKind::LParen)?; // LParent
+            self.consume(tk::LParen)?; // LParent
             let base_type = self.parse_type_sign()?; // typesign
-            self.consume(TokenKind::RParen)?; // RParent
+            self.consume(tk::RParen)?; // RParent
 
             base_type
         } else {
             return Err(ParserError {
                 message: format!(
                     "parse_statement error: need {:?}, but found token {:?}",
-                    TokenKind::LParen,
+                    tk::LParen,
                     self.peek()
                 ),
                 token: self.peek().clone().into(),
@@ -561,22 +561,22 @@ impl<'a> CbmlParser<'a> {
         };
 
         // identifier
-        let union_name: String = if let TokenKind::Identifier(union_name) =
-            self.consume(TokenKind::Identifier("".into()))?.kind.clone()
+        let union_name: String = if let tk::Identifier(union_name) =
+            self.consume(tk::Identifier("".into()))?.kind.clone()
         {
             union_name
         } else {
             return Err(ParserError {
                 message: format!(
                     "parse_statement error: need {:?}, but found token {:?}",
-                    TokenKind::Identifier("".into()),
+                    tk::Identifier("".into()),
                     self.peek()
                 ),
                 token: self.peek().clone().into(),
             });
         };
 
-        self.consume(TokenKind::Asign)?; // Assignment
+        self.consume(tk::Asign)?; // Assignment
 
         let alowd_values = self.parse_union_fields()?; // union_field{1,}
 
@@ -591,15 +591,15 @@ impl<'a> CbmlParser<'a> {
 
     fn parse_use(&mut self) -> Result<Stmt, ParserError> {
         // 解析 use 语句
-        self.consume(TokenKind::Use)?;
-        if let TokenKind::String(name) = self.consume(TokenKind::String("".into()))?.kind.clone() {
+        self.consume(tk::Use)?;
+        if let tk::String(name) = self.consume(tk::String("".into()))?.kind.clone() {
             self.consume_stmt_end_token()?;
             return Ok(Stmt::Use(name));
         } else {
             return Err(ParserError {
                 message: format!(
                     "parse_statement error: need {:?}, but found token {:?}",
-                    TokenKind::String("".into()),
+                    tk::String("".into()),
                     self.peek()
                 ),
                 token: self.peek().clone().into(),
@@ -609,43 +609,54 @@ impl<'a> CbmlParser<'a> {
 
     /// 解析单个语句，根据当前 Token 类型决定解析方式
     fn parse_statement(&mut self) -> Result<Stmt, ParserError> {
-        use crate::lexer::token::TokenKind::*;
         println!("parse_statement(&mut self)");
 
-        _ = self.eat_zeor_or_multy(NewLine);
+        _ = self.eat_zeor_or_multy(tk::NewLine);
 
-        let tok = self.peek();
-        match tok.kind {
-            TokenKind::Identifier(_) => {
+        let tok = self.peek().kind.clone();
+        match tok {
+            tk::Identifier(_) => {
                 // 解析赋值语句
                 let next_tok = self.peek_next(1);
-                if next_tok.kind.kind_is(&TokenKind::Asign) {
+                if next_tok.kind.kind_is(&tk::Asign) {
                     return self.parse_asignment();
-                } else if next_tok.kind.kind_is(&TokenKind::Colon) {
+                } else if next_tok.kind.kind_is(&tk::Colon) {
                     let field_def = self.parse_struct_field_def()?;
                     return Ok(Stmt::FieldDef(field_def));
                 } else {
                     return Err(ParserError {
                         message: format!(
                             "need {:?} or {:?}, but found {:?}",
-                            TokenKind::Asign,
-                            TokenKind::Colon,
+                            tk::Asign,
+                            tk::Colon,
                             next_tok.kind
                         ),
                         token: next_tok.clone().into(),
                     });
                 }
             }
-            TokenKind::Use => self.parse_use(),
-            TokenKind::Struct => return self.parse_struct_def(),
-            TokenKind::Union => self.parse_union_def(),
-            TokenKind::Enum => self.parse_enum_def(),
+            tk::Use => self.parse_use(),
+            tk::Struct => return self.parse_struct_def(),
+            tk::Union => self.parse_union_def(),
+            tk::Enum => self.parse_enum_def(),
+            tk::LineComment(s) => {
+                self.consume(tk::LineComment("".into()))?;
+                return Ok(Stmt::LineComment(s));
+            }
+            tk::BlockComment(s) => {
+                self.consume(tk::BlockComment("".into()))?;
+                Ok(Stmt::BlockComment(s))
+            }
+            tk::DocComment(s) => {
+                self.consume(tk::DocComment("".into()))?;
+                Ok(Stmt::DocComment(s))
+            }
             _ => {
                 println!("parse_statement error: unkonow token {:?}", tok);
                 todo!();
                 return Err(ParserError::new(
                     format!("parse_statement error: unkonow token {:?}", tok),
-                    Some(tok.clone()),
+                    Some(self.peek().clone()),
                 ));
             }
         }
@@ -657,14 +668,14 @@ impl<'a> CbmlParser<'a> {
 
         println!("parse_enum_def(&mut self)");
 
-        self.consume(TokenKind::Enum)?; // enum
+        self.consume(tk::Enum)?; // enum
 
-        let enum_name_tok = self.consume(TokenKind::Identifier("".into()))?; // identifier
+        let enum_name_tok = self.consume(tk::Identifier("".into()))?; // identifier
 
-        if let TokenKind::Identifier(enum_name) = enum_name_tok.kind.clone() {
-            self.consume(TokenKind::LBrace)?; // LBrace
+        if let tk::Identifier(enum_name) = enum_name_tok.kind.clone() {
+            self.consume(tk::LBrace)?; // LBrace
 
-            self.eat_zeor_or_multy(TokenKind::NewLine)?; // newline{0,}
+            self.eat_zeor_or_multy(tk::NewLine)?; // newline{0,}
 
             let mut fields: Vec<EnumFieldDefinition> = vec![];
 
@@ -673,22 +684,22 @@ impl<'a> CbmlParser<'a> {
 
                 let mut count = 0;
                 while !self.is_at_end() {
-                    if let TokenKind::RBrace = self.peek().kind.clone() {
+                    if let tk::RBrace = self.peek().kind.clone() {
                         break;
                     }
 
-                    // let field_name_tok = self.consume(TokenKind::Identifier("".into()))?;
+                    // let field_name_tok = self.consume(tk::Identifier("".into()))?;
 
                     let asdf = self.parse_enum_field()?;
                     fields.push(asdf);
 
-                    // let field_name_tok = self.consume(TokenKind::Identifier("".into())).unwrap();
-                    // if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
-                    //     self.consume(TokenKind::LParen)?;
+                    // let field_name_tok = self.consume(tk::Identifier("".into())).unwrap();
+                    // if let tk::Identifier(field_name) = field_name_tok.kind.clone() {
+                    //     self.consume(tk::LParen)?;
 
                     //     let ty = self.parse_type_sign()?;
 
-                    //     self.consume(TokenKind::RParen)?;
+                    //     self.consume(tk::RParen)?;
 
                     //     let e = EnumFieldDefinition {
                     //         name: field_name,
@@ -702,7 +713,7 @@ impl<'a> CbmlParser<'a> {
                 }
             }
 
-            self.consume(TokenKind::RBrace)?;
+            self.consume(tk::RBrace)?;
 
             let enum_type = EnumTy {
                 name: enum_name,
@@ -721,17 +732,17 @@ impl<'a> CbmlParser<'a> {
     fn parse_enum_field(&mut self) -> Result<EnumFieldDefinition, ParserError> {
         // enum_field =   identifier LParent typedef RParent newline
 
-        // let field_name_tok = self.consume(TokenKind::Identifier("".into()))?; // identifier
-        let field_name_tok = self.consume(TokenKind::Identifier("".into())).unwrap();
+        // let field_name_tok = self.consume(tk::Identifier("".into()))?; // identifier
+        let field_name_tok = self.consume(tk::Identifier("".into())).unwrap();
 
-        if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
-            self.consume(TokenKind::LParen)?; // LParent
+        if let tk::Identifier(field_name) = field_name_tok.kind.clone() {
+            self.consume(tk::LParen)?; // LParent
 
             let ty = self.parse_type_sign()?; // typedef
 
-            self.consume(TokenKind::RParen)?;
+            self.consume(tk::RParen)?;
 
-            self.consume(TokenKind::NewLine)?;
+            self.consume(tk::NewLine)?;
 
             let e = EnumFieldDefinition {
                 name: field_name,
@@ -748,11 +759,10 @@ impl<'a> CbmlParser<'a> {
 impl<'a> CbmlParser<'a> {
     /// 检查是否到达 Token 列表的末尾
     fn is_at_end(&self) -> bool {
-        self.current_position >= self.tokens.len()
-            || self.peek().clone().kind.kind_is(&TokenKind::EOF)
+        self.current_position >= self.tokens.len() || self.peek().clone().kind.kind_is(&tk::EOF)
     }
 
-    fn eat_zeor_or_multy(&mut self, kind: TokenKind) -> Result<Vec<Token>, ParserError> {
+    fn eat_zeor_or_multy(&mut self, kind: tk) -> Result<Vec<Token>, ParserError> {
         let mut eated = Vec::<Token>::new();
 
         while !self.is_at_end() {
@@ -777,7 +787,7 @@ impl<'a> CbmlParser<'a> {
     }
 
     /// 消费一个期望的 Token，如果当前 Token 不匹配则返回错误
-    fn consume(&mut self, kind: TokenKind) -> Result<&Token, ParserError> {
+    fn consume(&mut self, kind: tk) -> Result<&Token, ParserError> {
         if self.check(&kind) {
             let tok = &self.tokens[self.current_position];
 
@@ -792,7 +802,7 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
-    // fn one_of(&mut self, kinds: &[TokenKind]) -> Result<&Token, ParserError> {
+    // fn one_of(&mut self, kinds: &[tk]) -> Result<&Token, ParserError> {
     //     for kind in kinds {
     //         if self.check(kind) {
     //             return self.consume(kind.clone());
@@ -806,7 +816,7 @@ impl<'a> CbmlParser<'a> {
     // }
 
     /// 检查当前 Token 是否与期望的 Token 匹配
-    fn check(&self, kind: &TokenKind) -> bool {
+    fn check(&self, kind: &tk) -> bool {
         if self.is_at_end() {
             return false;
         }
@@ -828,21 +838,17 @@ impl<'a> CbmlParser<'a> {
         let tok = self.peek().clone();
         println!("consume_stmt_end_token: {:?}", tok);
         match &tok.kind {
-            TokenKind::NewLine => {
-                self.consume(TokenKind::NewLine)?;
+            tk::NewLine => {
+                self.consume(tk::NewLine)?;
                 return Ok(tok);
             }
-            TokenKind::EOF => {
+            tk::EOF => {
                 return Ok(tok);
             }
 
             _ => {
                 return Err(ParserError::new(
-                    format!(
-                        "need: {:?}, but found: {:?}",
-                        TokenKind::NewLine,
-                        self.peek()
-                    ),
+                    format!("need: {:?}, but found: {:?}", tk::NewLine, self.peek()),
                     Some(self.peek().clone()),
                 ));
             }
@@ -853,7 +859,7 @@ impl<'a> CbmlParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::token::TokenKind;
+
     use crate::lexer::tokenizer;
 
     #[test]

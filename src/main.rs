@@ -1,63 +1,45 @@
 mod lexer;
 mod parser;
+
 fn main() {
     lexer::tokenizer("name = \"hello\"").unwrap();
+    tests::test_parser();
 }
 
-// #[test]
-// fn test_parser() {
-//     // let code = std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml").unwrap();
-//     // let code = std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml") .unwrap();
+mod tests {
 
-//     let code = CODE;
-//     let tokens = tokenizer(&code).unwrap();
-//     println!("tokens: {:?}", tokens);
-//     let mut parser = CbmlParser::new(&tokens);
-//     let re = parser.parse();
-//     match re {
-//         Ok(statements) => {
-//             statements.iter().for_each(|s| {
-//                 println!("statement: {:?}", s);
-//             });
-//         }
-//         Err(e) => {
-//             e.iter().for_each(|s| {
-//                 println!("message: {:?}", s.message);
-//                 println!("tok: {:?}", s.token);
-//             });
-//         }
-//     }
-// }
+    use crate::lexer::tokenizer;
 
-// const CODE: &str = r##"
+    // #[test]
+    pub fn test_parser() {
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml");
 
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
+    }
 
-// package: {
-// name: string default "hello"
-// version: string 
-// edition: string 
-// }
+    fn asdfasdfsdf(path: &str) {
+        use crate::parser::cbml_parser::CbmlParser;
 
-// dependencie: [dependencie]
+        use std::fs::read_to_string;
+        let code = read_to_string(path).unwrap();
 
-// struct dependencie_with_ssh {
-// name: string 
-// git: string 
-// branch: string 
-// }
-
-// struct dependencie_whith_version {
-// name:string 
-// varsion: string 
-// }
-
-// enum dependencie {
-// ssh({
-//     name: string 
-//     git: string 
-//     branch: string 
-// }),
-// version(dependencie_whith_version),
-// }
-
-// "##;
+        let tokens = tokenizer(&code).unwrap();
+        println!("tokens: {:?}", tokens);
+        let mut parser = CbmlParser::new(&tokens);
+        let re = parser.parse();
+        match re {
+            Ok(statements) => {
+                statements.iter().for_each(|s| {
+                    println!("statement: {:?}", s);
+                });
+            }
+            Err(e) => {
+                e.iter().for_each(|s| {
+                    println!("message: {:?}", s.message);
+                    println!("tok: {:?}", s.token);
+                });
+            }
+        }
+    }
+}
