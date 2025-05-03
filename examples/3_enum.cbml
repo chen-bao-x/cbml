@@ -1,0 +1,19 @@
+
+enum location {
+    git({
+        url:string 
+        branch:string 
+    })
+    directory({
+        path:string 
+    })
+}
+
+g = git({
+    url = "github.com/cbml"
+    branch = "main"
+})
+
+d = directory({
+    path = "path/to/diractory"
+})

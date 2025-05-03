@@ -1,5 +1,5 @@
 use std::num::ParseFloatError;
-
+use crate::dp;
 use super::token::{Token, TokenKind};
 
 #[derive(Debug)]
@@ -73,7 +73,9 @@ impl Lexer {
                         ':' => tokens.push(Token::new(TokenKind::Colon, self.line, self.column)),
                         '|' => tokens.push(Token::new(TokenKind::Pipe, self.line, self.column)),
                         '=' => tokens.push(Token::new(TokenKind::Asign, self.line, self.column)),
-                        '?' => tokens.push(Token::new(TokenKind::QuestionMark, self.line, self.column)),
+                        '?' => {
+                            tokens.push(Token::new(TokenKind::QuestionMark, self.line, self.column))
+                        }
 
                         '"' => {
                             self.state = State::InString;
@@ -172,7 +174,8 @@ impl Lexer {
                         self.current.push(ch);
                     }
                     _ => {
-                        println!("hex {:?}", self.current);
+                        dp(format!("hex {:?}", self.current));
+
                         let hex_value = u64::from_str_radix(&self.current[2..], 16)
                             .map_err(|e| e.to_string())?;
                         let tok =
@@ -446,8 +449,8 @@ impl Lexer {
                     //     tokens.push(Token::new(TokenKind::Invalid('\''), &self));
                     // }
                     _ => {
-                        println!("{:?}", self.state);
-                        println!("{:?}", self.current);
+                        dp(format!("{:?}", self.state));
+                        dp(format!("{:?}", self.current));
                         todo!();
                     }
                 }
@@ -475,11 +478,11 @@ mod test {
         match a {
             Ok(tokens) => {
                 for token in tokens {
-                    println!("{:?}", token.kind);
+                    dp(format!("{:?}", token.kind));
                 }
             }
             Err(e) => {
-                println!("Error: {}", e);
+                dp(format!("Error: {}", e));
             }
         }
     }

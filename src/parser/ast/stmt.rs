@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Use(String), // use "path/to/file"
@@ -9,8 +7,8 @@ pub enum Stmt {
         value: Literal,
     },
 
-    FieldDef(StructFieldDefinition), // name : type; 文件的 field,
-    TypeAlias(String, CbmlType),     // type name = type
+    StructFieldDef(StructFieldDefinition), // name : type; 文件的 field,
+    TypeAlias(String, CbmlType),           // type name = type
     StructDef(StructTy),
     EnumDef(EnumTy), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
     UnionDef(UnionTy), // 具名 union
@@ -49,6 +47,10 @@ pub enum Literal {
     Array(Vec<Literal>),    // [1,2,2]
     Struct(Vec<Asignment>), // 结构体字面量暂时先不做.
     Union(Vec<Literal>),
+    Enum {
+        field_name: String,
+        literal: Box<Literal>,
+    },
     None, // none
     Todo,
     Default,
@@ -161,6 +163,23 @@ impl Literal {
             Literal::Union(literals) => {
                 return Literal::union_base_type_2(literals);
             }
+            Literal::Enum {
+                field_name,
+                literal,
+            } => {
+                let re = Literal::from_vec_literal(&[*literal.clone()]);
+
+                let ty: CbmlType = match re {
+                    TypeInference::Inferenced(cbml_type) => cbml_type,
+                    TypeInference::UnInference => CbmlType::Any,
+                    TypeInference::InferenceUnkonw => CbmlType::Any,
+                };
+
+                return TypeInference::Inferenced(CbmlType::Enum {
+                    field_name: field_name.clone(),
+                    field_type: ty.into(),
+                });
+            }
         };
     }
 
@@ -206,6 +225,10 @@ pub enum CbmlType {
         ty: Box<CbmlType>,
     }, // ?string /number ?bool ?[string] ?[number] ?[bool] ?{name: string}
     Any,     // any
+    Enum {
+        field_name: String,
+        field_type: Box<CbmlType>,
+    },
 
     /// 用户自定义的且设置了名字的类型.
     Custom(String), // 自定义类型 struct name, union(string) name, type name,

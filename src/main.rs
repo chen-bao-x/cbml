@@ -1,21 +1,22 @@
 mod lexer;
 mod parser;
 
-fn main() {
-    lexer::tokenizer("name = \"hello\"").unwrap();
-    tests::test_parser();
-}
+fn main() {}
 
+#[cfg(test)]
 mod tests {
 
-    use crate::lexer::tokenizer;
+    use crate::{dp, lexer::tokenizer};
 
-    // #[test]
+    #[test]
     pub fn test_parser() {
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
+
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml");
 
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
+
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/3_enum.cbml");
     }
 
     fn asdfasdfsdf(path: &str) {
@@ -25,21 +26,34 @@ mod tests {
         let code = read_to_string(path).unwrap();
 
         let tokens = tokenizer(&code).unwrap();
-        println!("tokens: {:?}", tokens);
+
+        dp(format!("tokens: {:?}", tokens));
+
         let mut parser = CbmlParser::new(&tokens);
         let re = parser.parse();
         match re {
             Ok(statements) => {
                 statements.iter().for_each(|s| {
-                    println!("statement: {:?}", s);
+                    dp(format!("statement: {:?}", s));
                 });
             }
             Err(e) => {
                 e.iter().for_each(|s| {
-                    println!("message: {:?}", s.message);
-                    println!("tok: {:?}", s.token);
+                    dp(format!("message: {:?}", s.message));
+                    dp(format!("tok: {:?}", s.token));
                 });
             }
         }
+    }
+}
+
+/// 只会在 debug 模式下打印输出.
+pub fn dp<T>(s: T)
+where
+    T: ToString,
+{
+    #[cfg(debug_assertions)]
+    {
+        println!("{}", s.to_string());
     }
 }

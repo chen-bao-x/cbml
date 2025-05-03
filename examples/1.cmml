@@ -16,3 +16,13 @@ str: string
 str = "string"
 num: number 
 num = -1324
+
+enum_1 = ssh({
+    name = "hello"
+    age = 99
+})
+
+enum_1 = ssh({
+    name = "hello"
+    age = 99
+})
