@@ -468,7 +468,8 @@ impl<'a> CbmlParser<'a> {
             if count == 0 {
                 _ = self.consume(TokenKind::Pipe); // 第一个 pipe 符号可有可无.
 
-                self.parse_literal()?;
+                let literal = self.parse_literal()?;
+                literals.push(literal);
             } else {
                 if self.peek().kind.clone().kind_is(&TokenKind::Pipe) {
                     self.consume(TokenKind::Pipe)?;
