@@ -16,6 +16,12 @@ pub enum Stmt {
     UnionDef(UnionTy), // 具名 union
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Asignment {
+    pub field_name: String,
+    pub value: Literal,
+}
+
 /// name: string
 /// name: string default "hello"
 #[derive(Debug, Clone)]
@@ -36,8 +42,8 @@ pub enum Literal {
     String(String),
     Number(f64),
     Boolean(bool),
-    Array(Vec<Literal>),            // [1,2,2]
-    Struct(Vec<(String, Literal)>), // 结构体字面量暂时先不做.
+    Array(Vec<Literal>),    // [1,2,2]
+    Struct(Vec<Asignment>), // 结构体字面量暂时先不做.
     Union(Vec<Literal>),
     None, // none
     Todo,
@@ -128,7 +134,7 @@ impl Literal {
                 let asdf: Vec<StructFieldDefinition> = fields
                     .iter()
                     .map(|x| {
-                        let re = Literal::from_vec_literal(&[x.1.clone()]);
+                        let re = Literal::from_vec_literal(&[x.value.clone()]);
                         let ty: CbmlType = match re {
                             TypeInference::Inferenced(cbml_type) => cbml_type,
                             TypeInference::UnInference => CbmlType::Any,
@@ -136,7 +142,7 @@ impl Literal {
                         };
 
                         return StructFieldDefinition {
-                            field_name: x.0.clone(),
+                            field_name: x.field_name.clone(),
                             ty: ty,
                             default: None,
                         };
