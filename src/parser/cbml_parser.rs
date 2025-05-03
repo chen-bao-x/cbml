@@ -1,8 +1,11 @@
 use super::{
     ParserError,
-    ast::stmt::{CbmlType, FieldDefinition, Literal, Stmt, StructTy},
+    ast::stmt::{CbmlType, Literal, Stmt, StructFieldDefinition, StructTy},
 };
-use crate::lexer::token::{Token, TokenKind};
+use crate::{
+    lexer::token::{Token, TokenKind},
+    parser::ast::stmt::{EnumFieldDefinition, EnumTy},
+};
 use std::collections::HashMap;
 
 /// cbml 解析器
@@ -103,7 +106,7 @@ impl<'a> CbmlParser<'a> {
                 // 结构体类型
                 self.consume(TokenKind::LBrace)?;
 
-                let mut fields: Vec<FieldDefinition> = vec![];
+                let mut fields: Vec<StructFieldDefinition> = vec![];
                 let mut count = 0;
 
                 while !self.is_at_end() {
@@ -346,7 +349,7 @@ impl<'a> CbmlParser<'a> {
             }
         }
     }
-    fn parse_field_def(&mut self) -> Result<FieldDefinition, ParserError> {
+    fn parse_field_def(&mut self) -> Result<StructFieldDefinition, ParserError> {
         // 解析字段定义
         let name_tok = self.consume(TokenKind::Identifier("".into()))?;
         if let TokenKind::Identifier(name) = name_tok.kind.clone() {
@@ -359,7 +362,7 @@ impl<'a> CbmlParser<'a> {
 
             // self.consume_stmt_end_token()?;
 
-            return Ok(FieldDefinition {
+            return Ok(StructFieldDefinition {
                 field_name: name,
                 ty: field_type,
                 default: default_value,
@@ -386,7 +389,7 @@ impl<'a> CbmlParser<'a> {
         {
             self.consume(TokenKind::LBrace)?;
 
-            let mut fields: Vec<FieldDefinition> = vec![];
+            let mut fields: Vec<StructFieldDefinition> = vec![];
             let mut count = 0;
 
             while !self.is_at_end() {
@@ -525,7 +528,7 @@ impl<'a> CbmlParser<'a> {
             TokenKind::Use => self.parse_use(),
             TokenKind::Struct => return self.parse_struct_def(),
             TokenKind::Union => self.parse_union_def(),
-
+            TokenKind::Enum => self.parse_enum_def(),
             _ => {
                 println!("parse_statement error: unkonow token {:?}", tok);
                 todo!();
@@ -534,6 +537,77 @@ impl<'a> CbmlParser<'a> {
                     Some(tok.clone()),
                 ));
             }
+        }
+    }
+
+    fn parse_enum_def(&mut self) -> Result<Stmt, ParserError> {
+        // enum identifier LBrace newline{0,} enum_field{0,} RBrace
+        // enum_field = newline{0,} identifier LParent typedef RParent newline
+
+        self.consume(TokenKind::Enum)?; // enum
+        let enum_name_tok = self.consume(TokenKind::Identifier("".into()))?; // identifier
+
+        if let TokenKind::Identifier(enum_name) = enum_name_tok.kind.clone() {
+            self.consume(TokenKind::LBrace)?; // LBrace
+            self.eat_zeor_or_multy(TokenKind::NewLine)?; // newline{0,}
+
+            let mut fields: Vec<EnumFieldDefinition> = vec![];
+
+            {
+                // enum_field{0,}
+
+                let mut count = 0;
+                while !self.is_at_end() {
+                    if count > 0 {
+                        let k = self.peek().kind.clone();
+                        match k {
+                            TokenKind::Comma => {
+                                self.consume(TokenKind::Comma)?;
+                            }
+                            TokenKind::NewLine => {
+                                self.consume(TokenKind::NewLine)?;
+                            }
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+
+                    if let TokenKind::LBrace = self.peek().kind.clone() {
+                        break;
+                    }
+
+                    _ = self.eat_zeor_or_multy(TokenKind::NewLine)?;
+
+                    let field_name_tok = self.consume(TokenKind::Identifier("".into()))?;
+                    if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
+                        self.consume(TokenKind::LParen)?;
+
+                        let ty = self.parse_type_sign()?;
+
+                        self.consume(TokenKind::RParen)?;
+
+                        fields.push(EnumFieldDefinition {
+                            name: field_name,
+                            ty,
+                        });
+                    } else {
+                        panic!("这是逻辑上不可能出现的错误.")
+                    }
+                }
+            }
+            self.consume(TokenKind::RBrace)?;
+            let enum_type = EnumTy {
+                name: enum_name,
+                fields,
+            };
+            return Ok(Stmt::EnumDef(enum_type));
+        } else {
+            panic!("这是逻辑上不可能出现的错误.")
+            // return Err(ParserError {
+            //     message: format!("这是逻辑上不可能出现的错误"),
+            //     token: Some(enum_name_tok.clone()),
+            // });
         }
     }
 }
@@ -636,10 +710,9 @@ mod tests {
     #[test]
     fn test_parser() {
         // let code = std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml").unwrap();
-        let code =
-            std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml")
-                .unwrap();
-        // let code = r#" neme = "hello" "#;
+        // let code = std::fs::read_to_string("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml") .unwrap();
+
+        let code = CODE;
         let tokens = tokenizer(&code).unwrap();
         println!("tokens: {:?}", tokens);
         let mut parser = CbmlParser::new(&tokens);
@@ -658,4 +731,37 @@ mod tests {
             }
         }
     }
+
+    const CODE: &str = r##"
+    
+
+package: {
+    name: string default "hello"
+    version: string 
+    edition: string 
+}
+
+dependencie: [dependencie]
+
+struct dependencie_with_ssh {
+    name: string 
+    git: string 
+    branch: string 
+}
+
+struct dependencie_whith_version {
+    name:string 
+    varsion: string 
+}
+
+enum dependencie {
+    ssh({
+        name: string 
+        git: string 
+        branch: string 
+    }),
+    version(dependencie_whith_version),
+}
+
+    "##;
 }

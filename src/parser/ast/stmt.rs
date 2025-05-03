@@ -8,10 +8,10 @@ pub enum Stmt {
         field_name: String,
         value: Literal,
     },
-    FieldDef(FieldDefinition),   // name : type
-    TypeAlias(String, CbmlType), // type name = type
+    FieldDef(StructFieldDefinition), // name : type; 文件的 field,
+    TypeAlias(String, CbmlType),     // type name = type
     StructDef(StructTy),
-
+    EnumDef(EnumTy), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
     // {
     //     name: String,
     //     fields: Vec<FieldDefinition>, // 字段名不能重复, 所以用 HashMap.
@@ -25,10 +25,16 @@ pub enum Stmt {
 /// name: string
 /// name: string default "hello"
 #[derive(Debug, Clone)]
-pub struct FieldDefinition {
+pub struct StructFieldDefinition {
     pub field_name: String,
     pub ty: CbmlType,
     pub default: Option<Literal>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumFieldDefinition {
+    pub name: String,
+    pub ty: CbmlType,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,6 +51,7 @@ pub enum Literal {
 }
 
 /// 自带的几个基础类型
+/// struct enum union 支持 匿名类型.
 #[derive(Debug, Clone)]
 pub enum CbmlType {
     String {
@@ -60,18 +67,20 @@ pub enum CbmlType {
         inner_type: Box<CbmlType>,
         default: Option<Vec<Literal>>,
     }, // [Type], // 数组类型
-    Struct(Vec<FieldDefinition>), // 结构体类型 HashMap<String, Literal>
+    Struct(Vec<StructFieldDefinition>), // 结构体类型 HashMap<String, Literal>
     Union {
         ty: UnionTY,
         default: Option<Literal>,
     }, // 联合类型
-    Any {
-        default: Option<Literal>,
-    }, // any
     Optional {
         ty: Box<CbmlType>,
         default: Option<Literal>,
     }, // ?string /number ?bool ?[string] ?[number] ?[bool] ?{name: string}
+    Any {
+        default: Option<Literal>,
+    }, // any
+
+    /// 用户自定义的且设置了名字的类型.
     Custom {
         type_name: String,
         default: Option<Literal>,
@@ -83,7 +92,14 @@ pub struct StructTy {
     pub name: String,
 
     // fields: HashMap<String, CbmlType>, // 字段名不能重复, 所以用 HashMap.
-    pub fields: Vec<FieldDefinition>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
+    pub fields: Vec<StructFieldDefinition>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
+}
+#[derive(Debug, Clone)]
+pub struct EnumTy {
+    pub name: String,
+
+    // fields: HashMap<String, CbmlType>, // 字段名不能重复, 所以用 HashMap.
+    pub fields: Vec<EnumFieldDefinition>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
 }
 
 #[derive(Debug, Clone)]

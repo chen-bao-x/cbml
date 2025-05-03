@@ -56,6 +56,7 @@ pub enum TokenKind {
     Todo,    // todo
     Use,     // use
     Default, // default
+    Enum,    // enum
 
     StringTy,  // bool
     NumberTy,  // number
@@ -79,6 +80,7 @@ impl TokenKind {
                 "todo" => TokenKind::Todo,
                 "use" => TokenKind::Use,
                 "default" => TokenKind::Default,
+                "enum" => TokenKind::Enum,
 
                 "string" => TokenKind::StringTy,
                 "number" => TokenKind::NumberTy,
