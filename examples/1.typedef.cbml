@@ -25,3 +25,7 @@ branch: string
 })
 version(dependencie_whith_version)
 }
+
+union(number) Haha = 1 | 2 | 3
+
+asdfadsf: 1 | 2 | 3

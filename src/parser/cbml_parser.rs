@@ -1,12 +1,12 @@
 use super::{
     ParserError,
-    ast::stmt::{CbmlType, Literal, Stmt, StructFieldDefinition, StructTy},
+    ast::stmt::{CbmlType, Literal, Stmt, StructFieldDefinition, StructTy, UnionTy},
 };
 use crate::{
     lexer::token::{Token, TokenKind},
     parser::ast::stmt::{EnumFieldDefinition, EnumTy},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, result};
 
 /// cbml 解析器
 pub struct CbmlParser<'a> {
@@ -52,46 +52,45 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
+    /// 类型标注
     fn parse_type_sign(&mut self) -> Result<CbmlType, ParserError> {
+        // any | string | number | bool | identifier | Anonymous_optinal  | Anonymous_array | Anonymous_struct | Anonymous_union
+
         println!("parse_type_sign(&mut self)");
         // 解析类型声明
         let tok = self.peek();
         match tok.kind.clone() {
+            TokenKind::Any => {
+                self.consume(TokenKind::Any)?;
+                return Ok(CbmlType::Any);
+            }
+            TokenKind::StringTy => {
+                self.consume(TokenKind::StringTy)?;
+                return Ok(CbmlType::String);
+            }
+            TokenKind::NumberTy => {
+                self.consume(TokenKind::NumberTy)?;
+                return Ok(CbmlType::Number);
+            }
+            TokenKind::BooleanTy => {
+                self.consume(TokenKind::BooleanTy)?;
+                return Ok(CbmlType::Boolean);
+            }
+            TokenKind::Identifier(name) => {
+                self.consume(TokenKind::Identifier("".into()))?;
+
+                return Ok(CbmlType::Custom(name));
+            }
             TokenKind::QuestionMark => {
                 // 可选类型
                 self.consume(TokenKind::QuestionMark)?;
                 let inner_type = self.parse_type_sign()?;
                 return Ok(CbmlType::Optional {
                     ty: Box::new(inner_type),
-                    default: None,
                 });
-            }
-            TokenKind::Identifier(name) => {
-                self.consume(TokenKind::Identifier(name.clone()))?;
-
-                return Ok(CbmlType::Custom {
-                    type_name: name.clone(),
-                    default: None,
-                });
-            }
-            TokenKind::Any => {
-                self.consume(TokenKind::Any)?;
-                return Ok(CbmlType::Any { default: None });
-            }
-            TokenKind::StringTy => {
-                self.consume(TokenKind::StringTy)?;
-                return Ok(CbmlType::String { default: None });
-            }
-            TokenKind::NumberTy => {
-                self.consume(TokenKind::NumberTy)?;
-                return Ok(CbmlType::Number { default: None });
-            }
-            TokenKind::BooleanTy => {
-                self.consume(TokenKind::BooleanTy)?;
-                return Ok(CbmlType::Boolean { default: None });
             }
             TokenKind::LBracket => {
-                // 数组类型
+                // 匿名数组
                 self.consume(TokenKind::LBracket)?;
 
                 let inner_type = self.parse_type_sign()?;
@@ -100,7 +99,6 @@ impl<'a> CbmlParser<'a> {
 
                 return Ok(CbmlType::Array {
                     inner_type: Box::new(inner_type),
-                    default: None,
                 });
             }
             TokenKind::LBrace => {
@@ -147,6 +145,20 @@ impl<'a> CbmlParser<'a> {
             }
 
             _ => {
+                match self.peek_next(1).kind.clone() {
+                    TokenKind::Pipe => {
+                        // 解析匿名 union.
+                        let alowd_values = self.parse_union_fields()?;
+
+                        let base_type: CbmlType = Literal::union_base_type(&alowd_values);
+                        return Ok(CbmlType::Union {
+                            base_type: Box::new(base_type),
+                            alowd_values: alowd_values,
+                        });
+                    }
+                    _ => {}
+                };
+
                 println!("parse_type_sign error: unkonow token {:?}", tok);
                 todo!();
                 return Err(ParserError::new(
@@ -234,7 +246,7 @@ impl<'a> CbmlParser<'a> {
 
                 self.eat_zeor_or_multy(TokenKind::NewLine)?; // 可有可无的换行符.
 
-                let mut fields: HashMap<String, Literal> = HashMap::new();
+                let mut fields: Vec<(String, Literal)> = vec![];
 
                 let mut count = 0;
                 while !self.is_at_end() {
@@ -268,16 +280,17 @@ impl<'a> CbmlParser<'a> {
 
                                 let value = self.parse_literal()?;
 
-                                let re = fields.insert(name.clone(), value);
-                                match re {
-                                    Some(_) => {
-                                        return Err(ParserError::new(
-                                            format!("duplicate field: {:?}", name),
-                                            Some(name_tok.clone()),
-                                        ));
-                                    }
-                                    None => {}
-                                }
+                                fields.push((name.clone(), value));
+                                // let re = fields.push((name.clone(), value));
+                                // match re {
+                                //     Some(_) => {
+                                //         return Err(ParserError::new(
+                                //             format!("duplicate field: {:?}", name),
+                                //             Some(name_tok.clone()),
+                                //         ));
+                                //     }
+                                //     None => {}
+                                // }
                             }
                         }
                         _ => {
@@ -444,14 +457,49 @@ impl<'a> CbmlParser<'a> {
         };
     }
 
+    fn parse_union_fields(&mut self) -> Result<Vec<Literal>, ParserError> {
+        // union_field = pipe{1} literal
+
+        let mut literals: Vec<Literal> = vec![];
+
+        let mut count = 0;
+
+        loop {
+            if count == 0 {
+                _ = self.consume(TokenKind::Pipe); // 第一个 pipe 符号可有可无.
+
+                self.parse_literal()?;
+            } else {
+                if self.peek().kind.clone().kind_is(&TokenKind::Pipe) {
+                    self.consume(TokenKind::Pipe)?;
+                    let literal = self.parse_literal()?;
+                    literals.push(literal);
+                } else {
+                    break;
+                }
+            }
+
+            count += 1;
+        }
+
+        return Ok(literals);
+    }
+
     fn parse_union_def(&mut self) -> Result<Stmt, ParserError> {
+        // union LParent typesign RParent identifier Assignment union_field{1,}
+        // union_field = pipe{1} literal
+
         // 解析联合体定义
-        self.consume(TokenKind::Union)?;
-        if let TokenKind::LParen = self.peek().kind {
+        self.consume(TokenKind::Union)?; // union
+
+        // typesign
+        let base_type: CbmlType = if let TokenKind::LParen = self.peek().kind {
             // 解析联合体的基本类型
-            self.consume(TokenKind::LParen)?;
-            let base_type = self.parse_literal()?;
-            self.consume(TokenKind::RParen)?;
+            self.consume(TokenKind::LParen)?; // LParent
+            let base_type = self.parse_type_sign()?; // typesign
+            self.consume(TokenKind::RParen)?; // RParent
+
+            base_type
         } else {
             return Err(ParserError {
                 message: format!(
@@ -461,16 +509,13 @@ impl<'a> CbmlParser<'a> {
                 ),
                 token: self.peek().clone().into(),
             });
-        }
+        };
 
-        if let TokenKind::Identifier(name) =
+        // identifier
+        let union_name: String = if let TokenKind::Identifier(union_name) =
             self.consume(TokenKind::Identifier("".into()))?.kind.clone()
         {
-            self.consume_stmt_end_token()?;
-            return Ok(Stmt::UnionDef {
-                base_type: todo!(),
-                alowd_values: todo!(),
-            });
+            union_name
         } else {
             return Err(ParserError {
                 message: format!(
@@ -480,7 +525,19 @@ impl<'a> CbmlParser<'a> {
                 ),
                 token: self.peek().clone().into(),
             });
-        }
+        };
+
+        self.consume(TokenKind::Asign)?; // Assignment
+
+        let alowd_values = self.parse_union_fields()?; // union_field{1,}
+
+        self.consume_stmt_end_token()?;
+
+        return Ok(Stmt::UnionDef(UnionTy {
+            name: union_name,
+            base_type: base_type,
+            alowd_values,
+        }));
     }
 
     fn parse_use(&mut self) -> Result<Stmt, ParserError> {
@@ -533,9 +590,7 @@ impl<'a> CbmlParser<'a> {
             TokenKind::Use => self.parse_use(),
             TokenKind::Struct => return self.parse_struct_def(),
             TokenKind::Union => self.parse_union_def(),
-            TokenKind::Enum => {
-                return Ok(self.parse_enum_def().unwrap());
-            }
+            TokenKind::Enum => self.parse_enum_def(),
             _ => {
                 println!("parse_statement error: unkonow token {:?}", tok);
                 todo!();
@@ -578,7 +633,6 @@ impl<'a> CbmlParser<'a> {
                     let asdf = self.parse_enum_field()?;
                     fields.push(asdf);
 
-                    
                     // let field_name_tok = self.consume(TokenKind::Identifier("".into())).unwrap();
                     // if let TokenKind::Identifier(field_name) = field_name_tok.kind.clone() {
                     //     self.consume(TokenKind::LParen)?;
