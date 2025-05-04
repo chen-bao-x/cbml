@@ -1,20 +1,29 @@
+use std::fmt::write;
+
 #[derive(Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
-    pub line: usize,
-    pub column: usize,
+    pub location: Location,
 }
 
+// impl std::fmt::Display for Positon {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}:{}", self.line, self.column)
+//     }
+// }
+
 impl Token {
-    pub fn new(kind: TokenKind, line: usize, column: usize) -> Self {
-        Token { kind, line, column }
+    pub fn new(kind: TokenKind, location: Location) -> Self {
+        Token { kind, location }
     }
 }
-impl std::fmt::Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Token({:?}, {}, {})", self.kind, self.line, self.column)
-    }
-}
+
+// impl std::fmt::Display for Token {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{:?}{}{}", self.kind, self.stard, self.end)
+//     }
+// }
+
 impl std::cmp::PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
         self.kind.kind_is(&other.kind)
@@ -49,7 +58,7 @@ pub enum TokenKind {
     // key words
     True,    // true
     False,   // false
-    TkNone,    // none
+    TkNone,  // none
     Any,     // any
     Struct,  // struct
     Union,   // union
@@ -125,8 +134,20 @@ impl TokenKind {
             (TokenKind::BooleanTy, TokenKind::BooleanTy) => true,
             (TokenKind::Enum, TokenKind::Enum) => true,
             (TokenKind::EOF, TokenKind::EOF) => true,
-              
+
             _ => false,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Location {
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Clone, Debug)]
+pub struct Position {
+    pub line: usize,
+    pub column: usize,
 }

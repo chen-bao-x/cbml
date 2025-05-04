@@ -1,4 +1,4 @@
-use super::token::{Token, TokenKind};
+use super::token::{Location, Position, Token, TokenKind as tk};
 use crate::dp;
 use std::num::ParseFloatError;
 
@@ -23,6 +23,9 @@ pub struct Lexer {
     position: usize,
     line: usize,
     column: usize,
+
+    start_pos: Option<Position>,
+    end_pos: Option<Position>,
 }
 
 impl Lexer {
@@ -34,8 +37,11 @@ impl Lexer {
             line: 1,
             column: 1,
             state: State::Initial,
+            start_pos: None,
+            end_pos: None,
         }
     }
+
     fn advance(&mut self) -> Option<char> {
         if let Some(ch) = self.input.get(self.position) {
             self.position += 1;
@@ -51,8 +57,28 @@ impl Lexer {
         }
     }
 
+    fn fall_back(&mut self) {
+        if let Some(ch) = self.input.get(self.position) {
+            self.position -= 1;
+            if *ch == '\n' {
+                self.line -= 1;
+                self.column = 1; // todo!() 上一行的最后一个 column
+            } else {
+                self.column -= 1;
+            }
+            // return Some(*ch);
+        } else {
+            // return None;
+            todo!();
+        }
+    }
+
     fn peek(&self) -> Option<char> {
         self.input.get(self.position).copied()
+    }
+
+    fn peek_next(&self, n: usize) -> Option<char> {
+        self.input.get(self.position + n).copied()
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, String> {
@@ -62,19 +88,92 @@ impl Lexer {
                 State::Initial => {
                     match ch {
                         ' ' | '\t' => { /* skip whitespace */ }
-                        '\n' => tokens.push(Token::new(TokenKind::NewLine, self.line, self.column)),
-                        '(' => tokens.push(Token::new(TokenKind::LParen, self.line, self.column)),
-                        ')' => tokens.push(Token::new(TokenKind::RParen, self.line, self.column)),
-                        '[' => tokens.push(Token::new(TokenKind::LBracket, self.line, self.column)),
-                        ']' => tokens.push(Token::new(TokenKind::RBracket, self.line, self.column)),
-                        '{' => tokens.push(Token::new(TokenKind::LBrace, self.line, self.column)),
-                        '}' => tokens.push(Token::new(TokenKind::RBrace, self.line, self.column)),
-                        ',' => tokens.push(Token::new(TokenKind::Comma, self.line, self.column)),
-                        ':' => tokens.push(Token::new(TokenKind::Colon, self.line, self.column)),
-                        '|' => tokens.push(Token::new(TokenKind::Pipe, self.line, self.column)),
-                        '=' => tokens.push(Token::new(TokenKind::Asign, self.line, self.column)),
+                        '\n' => {
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::NewLine, loc));
+                        }
+                        '(' => {
+                            // tokens.push(Token::new(tk::LParen, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::LParen, loc));
+                        }
+                        ')' => {
+                            //  tokens.push(Token::new(tk::RParen, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::RParen, loc));
+                        }
+                        '[' => {
+                            // tokens.push(Token::new(tk::LBracket, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::LBracket, loc));
+                        }
+                        ']' => {
+                            // tokens.push(Token::new(tk::RBracket, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::RBracket, loc));
+                        }
+                        '{' => {
+                            //tokens.push(Token::new(tk::LBrace, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::LBrace, loc));
+                        }
+                        '}' => {
+                            //tokens.push(Token::new(tk::RBrace, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::RBrace, loc));
+                        }
+                        ',' => {
+                            //tokens.push(Token::new(tk::Comma, self.line, self.column))
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::Comma, loc));
+                        }
+                        ':' => {
+                            // tokens.push(Token::new(tk::Colon, self.line, self.column))
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::Colon, loc));
+                        }
+                        '|' => {
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::Pipe, loc));
+                        }
+                        '=' => {
+                            // tokens.push(Token::new(tk::Asign, self.line, self.column))
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+                            tokens.push(Token::new(tk::Asign, loc));
+                        }
                         '?' => {
-                            tokens.push(Token::new(TokenKind::QuestionMark, self.line, self.column))
+                            // tokens.push(Token::new(tk::QuestionMark, self.line, self.column))
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+                            tokens.push(Token::new(tk::QuestionMark, loc));
                         }
 
                         '"' => {
@@ -112,14 +211,12 @@ impl Lexer {
                         }
                         // 处理无效字符
                         x => {
-                            let tok = Token {
-                                kind: TokenKind::Invalid(x),
-                                line: self.line,
-                                column: self.column,
-                            };
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
 
-                            tokens.push(tok.clone());
+                            // tokens.push(Token::new(tk::Invalid(x), start, end));
 
+                            let tok = Token::new(tk::Invalid(x), loc);
                             return Err(format!("未识别的字符 {:?}", tok));
                         }
                     }
@@ -131,17 +228,26 @@ impl Lexer {
                         }
 
                         _ => {
-                            let tok = Token::new(
-                                TokenKind::Identifier(self.current.clone()).handle_keyword(),
-                                self.line,
-                                self.column,
-                            );
+                            // let tok = Token::new(
+                            //     tk::Identifier(self.current.clone()).handle_keyword(),
+                            //     self.line,
+                            //     self.column,
+                            // );
 
-                            tokens.push(tok);
+                            // tokens.push(tok);
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(
+                                tk::Identifier(self.current.clone()).handle_keyword(),
+                                loc,
+                            ));
 
                             self.state = State::Initial;
-                            self.position -= 1;
-                            self.column -= 1;
+
+                            self.fall_back();
+
                             self.current.clear();
                         }
                     }
@@ -170,17 +276,20 @@ impl Lexer {
                                 binary_value as f64
                             };
 
-                            let tok = Token::new(
-                                TokenKind::Number(binary_value as f64),
-                                self.line,
-                                self.column,
-                            );
+                            // let tok =
+                            //     Token::new(tk::Number(binary_value as f64), self.line, self.column);
 
-                            tokens.push(tok);
+                            //     tokens.push(tok);
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::Number(binary_value as f64), loc));
 
                             self.state = State::Initial;
-                            self.position -= 1;
-                            self.column -= 1;
+
+                            self.fall_back();
+
                             self.current.clear();
                         }
                     };
@@ -212,14 +321,17 @@ impl Lexer {
                             }
                         };
 
-                        let tok =
-                            Token::new(TokenKind::Number(hex_value as f64), self.line, self.column);
+                        // let tok = Token::new(tk::Number(hex_value as f64), self.line, self.column);
 
-                        tokens.push(tok);
+                        // tokens.push(tok);
+
+                        self.mark_start_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(tk::Number(hex_value as f64), loc));
 
                         self.state = State::Initial;
-                        self.position -= 1;
-                        self.column -= 1;
+                        self.fall_back();
                         self.current.clear();
                     }
                 },
@@ -255,12 +367,16 @@ impl Lexer {
                                 .parse()
                                 .map_err(|e: ParseFloatError| e.to_string())?;
 
-                            let tok = Token::new(TokenKind::Number(num), self.line, self.column);
-                            tokens.push(tok);
+                            // let tok = Token::new(tk::Number(num), self.line, self.column);
+                            // tokens.push(tok);
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::Number(num), loc));
 
                             self.state = State::Initial;
-                            self.position -= 1;
-                            self.column -= 1;
+                            self.fall_back();
                             self.current.clear();
                         }
                     };
@@ -270,12 +386,18 @@ impl Lexer {
                     match ch {
                         '"' => {
                             // self.current.push(ch);
-                            let tok = Token::new(
-                                TokenKind::String(self.current.clone()),
-                                self.line,
-                                self.column,
-                            );
-                            tokens.push(tok);
+                            // let tok = Token::new(
+                            //     tk::String(self.current.clone()),
+                            //     self.line,
+                            //     self.column,
+                            // );
+                            // tokens.push(tok);
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::String(self.current.clone()), loc));
+
                             self.state = State::Initial;
                             self.current.clear();
                         }
@@ -387,12 +509,17 @@ impl Lexer {
                         '\n' => {
                             // 结束注释
 
-                            let tok = Token::new(
-                                TokenKind::LineComment(self.current.clone()),
-                                self.line,
-                                self.column,
-                            );
-                            tokens.push(tok);
+                            // let tok = Token::new(
+                            //     tk::LineComment(self.current.clone()),
+                            //     self.line,
+                            //     self.column,
+                            // );
+                            // tokens.push(tok);
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::LineComment(self.current.clone()), loc));
 
                             self.state = State::Initial;
                             self.current.clear();
@@ -425,12 +552,17 @@ impl Lexer {
                     match ch {
                         '\n' => {
                             // 结束注释
-                            let tok = Token::new(
-                                TokenKind::DocComment(self.current.clone()),
-                                self.line,
-                                self.column,
-                            );
-                            tokens.push(tok);
+                            // let tok = Token::new(
+                            //     TokenKind::DocComment(self.current.clone()),
+                            //     self.line,
+                            //     self.column,
+                            // );
+                            // tokens.push(tok);
+
+                            self.mark_start_pos();
+                            let loc = self.get_pos();
+
+                            tokens.push(Token::new(tk::DocComment(self.current.clone()), loc));
 
                             self.state = State::Initial;
                             self.current.clear();
@@ -450,12 +582,20 @@ impl Lexer {
                                     self.advance();
                                     self.current.push('/');
 
-                                    let tok = Token::new(
-                                        TokenKind::BlockComment(self.current.clone()),
-                                        self.line,
-                                        self.column,
-                                    );
-                                    tokens.push(tok);
+                                    // let tok = Token::new(
+                                    //     TokenKind::BlockComment(self.current.clone()),
+                                    //     self.line,
+                                    //     self.column,
+                                    // );
+                                    // tokens.push(tok);
+
+                                    self.mark_start_pos();
+                                    let loc = self.get_pos();
+
+                                    tokens.push(Token::new(
+                                        tk::BlockComment(self.current.clone()),
+                                        loc,
+                                    ));
 
                                     self.state = State::Initial;
                                     self.current.clear();
@@ -477,26 +617,48 @@ impl Lexer {
             if !self.current.is_empty() {
                 match self.state {
                     State::InIdentifier => {
-                        let tok = Token {
-                            kind: TokenKind::Identifier(self.current.clone()).handle_keyword(),
-                            line: self.line,
-                            column: self.column,
-                        };
-                        tokens.push(tok);
+                        // let tok = Token {
+                        //     kind: TokenKind::Identifier(self.current.clone()).handle_keyword(),
+                        //     line: self.line,
+                        //     column: self.column,
+                        // };
+                        // tokens.push(tok);
+
+                        self.mark_start_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(
+                            tk::Identifier(self.current.clone()).handle_keyword(),
+                            loc,
+                        ));
+
                         self.current.clear();
                     }
                     State::InNumber => {
-                        let tok = Token {
-                            // kind: TokenKind::HexNumber(self.current.clone()),
-                            kind: TokenKind::Number(
+                        // let tok = Token {
+                        //     // kind: TokenKind::HexNumber(self.current.clone()),
+                        //     kind: TokenKind::Number(
+                        //         self.current
+                        //             .parse()
+                        //             .map_err(|e: ParseFloatError| e.to_string())?,
+                        //     ),
+                        //     line: self.line,
+                        //     column: self.column,
+                        // };
+                        // tokens.push(tok);
+
+                        self.mark_start_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(
+                            tk::Number(
                                 self.current
                                     .parse()
                                     .map_err(|e: ParseFloatError| e.to_string())?,
                             ),
-                            line: self.line,
-                            column: self.column,
-                        };
-                        tokens.push(tok);
+                            loc,
+                        ));
+
                         self.current.clear();
                     }
                     // State::InString => {
@@ -526,10 +688,16 @@ impl Lexer {
                             }
                         };
 
-                        let tok =
-                            Token::new(TokenKind::Number(hex_value as f64), self.line, self.column);
+                        // let tok =
+                        //     Token::new(TokenKind::Number(hex_value as f64), self.line, self.column);
 
-                        tokens.push(tok);
+                        // tokens.push(tok);
+
+                        self.mark_start_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(tk::Number(hex_value as f64), loc));
+
                         self.current.clear();
                     }
 
@@ -552,24 +720,31 @@ impl Lexer {
                             binary_value as f64
                         };
 
-                        let tok = Token::new(
-                            TokenKind::Number(binary_value as f64),
-                            self.line,
-                            self.column,
-                        );
+                        // let tok =
+                        //     Token::new(tk::Number(binary_value as f64), self.line, self.column);
 
-                        tokens.push(tok);
+                        // tokens.push(tok);
+
+                        self.mark_start_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(tk::Number(binary_value as f64), loc));
 
                         self.current.clear();
                     }
 
                     State::InLineComment => {
-                        let tok = Token::new(
-                            TokenKind::LineComment(self.current.clone()),
-                            self.line,
-                            self.column,
-                        );
-                        tokens.push(tok);
+                        // let tok = Token::new(
+                        //     tk::LintComment(self.current.clone()),
+                        //     self.line,
+                        //     self.column,
+                        // );
+                        // tokens.push(tok);
+
+                        self.mark_start_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(tk::LineComment(self.current.clone()), loc));
                     }
                     _ => {
                         dp(format!("{:?}", self.state));
@@ -581,6 +756,42 @@ impl Lexer {
         }
 
         return Ok(tokens);
+    }
+}
+
+impl Lexer {
+    fn get_current_position(&self) -> Position {
+        Position {
+            line: self.line,
+            column: self.column,
+        }
+    }
+
+    fn get_pos(&mut self) -> Location {
+        let start = match self.start_pos.clone() {
+            Some(p) => {
+                self.start_pos = None;
+                p
+            }
+            None => todo!(),
+        };
+        let end = match self.end_pos.clone() {
+            Some(p) => {
+                self.end_pos = None;
+                p
+            }
+            None => self.get_current_position(),
+        };
+
+        return Location { start, end };
+    }
+
+    fn mark_start_pos(&mut self) {
+        self.start_pos = self.get_current_position().into();
+    }
+
+    fn mark_end_pos(&mut self) {
+        self.end_pos = self.get_current_position().into();
     }
 }
 

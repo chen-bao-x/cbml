@@ -1,6 +1,6 @@
 mod lexer;
 mod parser;
-
+mod typecheck;
 fn main() {
     tests::test_parser();
 }
@@ -45,8 +45,8 @@ mod tests {
         let mut parser = CbmlParser::new(&tokens);
         let re = parser.parse();
         match re {
-            Ok(statements) => {
-                statements.iter().for_each(|s| {
+            Ok(ast) => {
+                ast.iter().for_each(|s| {
                     dp(format!("statement: {:?}", s));
                 });
             }

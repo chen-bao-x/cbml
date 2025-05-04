@@ -2,7 +2,10 @@ use super::{
     ParserError,
     ast::stmt::{Asignment, CbmlType, Literal, Stmt, StructFieldDefinition, StructTy, UnionTy},
 };
-use crate::{dp, lexer::token::TokenKind as tk};
+use crate::{
+    dp,
+    lexer::token::{Location, Position, TokenKind as tk},
+};
 use crate::{
     lexer::token::Token,
     parser::ast::stmt::{EnumFieldDefinition, EnumTy},
@@ -22,7 +25,13 @@ impl<'a> CbmlParser<'a> {
             tokens,
             current_position: 0,
 
-            eof: Token::new(tk::EOF, 0, 0),
+            eof: Token::new(
+                tk::EOF,
+                Location {
+                    start: Position { line: 0, column: 0 },
+                    end: Position { line: 0, column: 0 },
+                },
+            ),
         }
     }
 

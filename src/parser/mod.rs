@@ -1,11 +1,10 @@
-use ast::stmt::Stmt;
+pub use ast::stmt::Stmt;
 use cbml_parser::CbmlParser;
 
 use crate::lexer::token::Token;
 
 mod ast;
 pub mod cbml_parser;
-mod typedef;
 
 /// 解析 Token 列表并返回 AST
 pub fn parse(source: &[Token]) -> Result<Vec<Stmt>, Vec<ParserError>> {
