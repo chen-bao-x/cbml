@@ -91,9 +91,6 @@ impl Lexer {
         let mut tokens = Vec::new();
 
         while let Some(ch) = self.peek() {
-            dp(format!("{ch}"));
-            dp(format!("{:?}", self.get_current_position()));
-
             match self.state {
                 State::Initial => {
                     match ch {
@@ -325,7 +322,7 @@ impl Lexer {
                         self.push(ch);
                     }
                     _ => {
-                        dp(format!("hex {:?}", self.current));
+                        // dp(format!("hex {:?}", self.current));
 
                         let 是负数吗: bool = {
                             if &self.current[0..1] == "-" {

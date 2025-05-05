@@ -2,20 +2,21 @@ mod lexer;
 mod parser;
 mod typecheck;
 
-#[allow(dead_code)]
 fn main() {
     tests::test_parser();
 
-    // config
+    // config file
     //
-    // useStmt | linecomment | blockComment | asignment
+    // config_file = useStmt{0,1} b{0,}
+    // b = linecomment | blockComment | asignment
     //
 
-    // typedef
-    //
+    // typedef file
+    // typedef_file = FileFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
 }
 
-fn fasdf(count: usize, f: fn()) {
+#[allow(dead_code)]
+fn timeit(count: usize, f: fn()) {
     use std::time::Instant;
     let start = Instant::now(); // 记录开始时间
 
@@ -31,10 +32,12 @@ fn fasdf(count: usize, f: fn()) {
 // #[cfg(test)]
 mod tests {
 
-    use crate::{dp, fasdf, lexer::tokenizer, typecheck::typecheck};
+    use crate::{dp, lexer::tokenizer, typecheck::typecheck};
 
     // #[test]
     pub fn test_parser() {
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
+
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml");
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
@@ -49,7 +52,7 @@ mod tests {
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
 
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
     }
 
     #[test]
@@ -88,7 +91,7 @@ mod tests {
             })
             .unwrap();
 
-        dp(format!("tokens: {:?}", tokens));
+        // dp(format!("tokens: {:?}", tokens));
 
         let mut parser = CbmlParser::new(&tokens);
         let re = parser.parse();
@@ -101,9 +104,14 @@ mod tests {
                 // dp("start typecheck: ");
 
                 let re = typecheck(ast);
-                re.iter().for_each(|x| {
-                    dp(format!("{:?}", x));
-                });
+                if re.is_empty() {
+                    dp("没有检查出类型错误.");
+                } else {
+                    // has errors.
+                    re.iter().for_each(|x| {
+                        dp(format!("{:?}", x));
+                    });
+                }
             }
             Err(e) => {
                 e.iter().for_each(|s| {

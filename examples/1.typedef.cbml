@@ -4,7 +4,7 @@ version: string
 edition: string
 }
 
-dependencie: [dependencie]
+dependencies: [dependencie]
 
 struct dependencie_with_ssh {
 name: string
@@ -77,3 +77,6 @@ tree: {
 }
 
 opt: | 1 | 2 | 23
+
+enum_1: dependencie
+enum_2: dependencie

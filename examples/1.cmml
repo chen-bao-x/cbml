@@ -1,4 +1,4 @@
-use "./1.typedef.cbml"
+use "/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml"
  
 package = {
     name = "new"
@@ -7,8 +7,8 @@ package = {
 }
 
 dependencies = [
-    { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" },
-    { name = "colored", varsion = "3.0.0", }
+  ssh(  { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" }),
+    version({ name = "colored", varsion = "3.0.0", })
 ]
 
 
@@ -17,12 +17,6 @@ str = "string"
 num: number 
 num = -1324
 
-enum_1 = ssh({
-    name = "hello"
-    age = 99
-})
+enum_1 =  ssh(  { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" })
 
-enum_1 = ssh({
-    name = "hello"
-    age = 99
-})
+enum_1 =  ssh(  { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" })

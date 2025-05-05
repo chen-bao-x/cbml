@@ -1,5 +1,3 @@
-use core::fmt;
-
 struct File {
     val: Vec<AsignmentStmt>,
 }
@@ -18,7 +16,7 @@ pub enum Stmt {
 
     /// 在文件中定义一个属性.
     FileFieldStmt(StructFieldDefStmt), // name : type; 文件的 field,
-    TypeAliasStmt(String, CbmlType),   // type name = type
+    TypeAliasStmt(String, CbmlType), // type name = type
 
     StructDefStmt(StructDef),
     EnumDef(EnumDef), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
@@ -46,6 +44,7 @@ pub struct StructFieldDefStmt {
     pub field_name: String,
     pub ty: CbmlType,
     pub default: Option<Literal>,
+    // pub document: String,
 }
 
 /// 枚举属性申明
@@ -70,7 +69,8 @@ pub enum Literal {
 
     // Optional,
     // Any,
-    EnumField {
+    /// enum field literal
+    EnumFieldLiteral {
         field_name: String,
         literal: Box<Literal>,
     },
@@ -97,60 +97,7 @@ impl Literal {
             _ => false,
         }
     }
-
-    pub fn to_cbml_type(&self) -> CbmlType {
-        match self {
-            Literal::String(_) => CbmlType::String,
-            Literal::Number(_) => CbmlType::Number,
-            Literal::Boolean(_) => CbmlType::Boolean,
-            Literal::Array(literals) => {
-                if let Some(first) = literals.first() {
-                    let first_type = first.to_cbml_type();
-                    if literals.iter().all(|x| x.to_cbml_type() == first_type) {
-                        // all save type
-                        return CbmlType::Array {
-                            inner_type: Box::new(first_type),
-                        };
-                    } else {
-                        // 元素类型各有不同
-                    }
-                } else {
-                    // literals.len() == 0
-                };
-
-                return CbmlType::Array {
-                    inner_type: Box::new(CbmlType::Any),
-                };
-            }
-            Literal::Struct(s) => {
-                let mut arr: Vec<StructFieldDefStmt> = vec![];
-
-                for x in s {
-                    arr.push(StructFieldDefStmt {
-                        field_name: x.field_name.clone(),
-                        ty: x.value.to_cbml_type(),
-                        default: None,
-                    });
-                }
-
-                return CbmlType::Struct(arr);
-            }
-            // Literal::Union(u) => {
-
-            //     CbmlType::Union {
-            //         base_type: Box::new(CbmlType::Any),
-            //         alowd_values: vec![],
-            //     };
-
-            //     todo!()
-            // },
-            Literal::LiteralNone => CbmlType::Any,
-            Literal::Todo => todo!(),
-            Literal::Default => todo!(),
-            Literal::EnumField { .. } => todo!(),
-        }
-    }
-
+ 
     pub fn union_base_type(arr: &[Literal]) -> CbmlType {
         let re = Literal::union_base_type_2(arr);
         return match re {
@@ -224,7 +171,7 @@ impl Literal {
 
                         return StructFieldDefStmt {
                             field_name: x.field_name.clone(),
-                            ty: ty,
+                            ty,
                             default: None,
                         };
                     })
@@ -238,9 +185,9 @@ impl Literal {
             // Literal::Union(literals) => {
             //     return Literal::union_base_type_2(literals);
             // }
-            Literal::EnumField {
-                field_name,
-                literal,
+            Literal::EnumFieldLiteral {
+                field_name: _field_name,
+                literal: _lit,
             } => {
                 // let re = Literal::from_vec_literal(&[*literal.clone()]);
 
@@ -261,7 +208,7 @@ impl Literal {
     }
 
     fn skip_none(arr: &[Literal]) -> Option<&Literal> {
-        let mut len = arr.len();
+        let len = arr.len();
         let mut count = 0;
 
         while count < len {
@@ -320,10 +267,19 @@ impl Literal {
                 return re;
             }
 
-            Literal::EnumField {
+            Literal::EnumFieldLiteral {
                 field_name: _field_name,
                 literal: _literal,
-            } => todo!("暂时还不支持 enum 字面量"),
+            } => {
+                let mut re = String::new();
+                re.push_str(_field_name);
+                re.push('(');
+                
+                re.push_str(&_literal.to_cbml_code());
+
+                re.push(')');
+                return re;
+            }
             Literal::LiteralNone => {
                 let mut re = String::new();
                 re.push_str("none");
@@ -405,7 +361,7 @@ impl CbmlType {
                 alowd_values,
             } => {
                 let mut str = String::new();
-                alowd_values.iter().map(|x| {
+                alowd_values.iter().for_each(|x| {
                     str.push_str(&format!("{} | ", x.to_cbml_code()));
                 });
 
@@ -469,7 +425,8 @@ pub struct UnionDef {
 }
 
 impl UnionDef {
-    fn duplicate_check(&self) -> Vec<Literal> {
+    #[allow(dead_code)]
+    pub fn duplicate_check(&self) -> Vec<Literal> {
         let mut re: Vec<&Literal> = Vec::new();
         let mut duplicated: Vec<Literal> = Vec::new();
         for v in &self.allowed_values {

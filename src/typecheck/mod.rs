@@ -1,8 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use crate::parser::{
-    Stmt,
-    ast::stmt::{CbmlType, EnumField, Literal, UnionDef},
+use crate::{
+    dp,
+    lexer::tokenizer,
+    parser::{
+        Stmt,
+        ast::stmt::{CbmlType, EnumField, Literal, UnionDef},
+    },
 };
 // *    名称重复
 // •	错误位置
@@ -18,12 +22,14 @@ pub fn typecheck(ast: Vec<Stmt>) -> Vec<TypeCheckedResult> {
 struct TypeChecker {
     /// 自定义的类型, 例如: struct, enum, union, type alias, named array,
     custom_types: HashMap<String, CbmlType>,
+    is_typedefed: bool,
 }
 
 impl TypeChecker {
     fn new() -> Self {
         TypeChecker {
             custom_types: HashMap::new(),
+            is_typedefed: false,
         }
     }
     fn typecheck(&mut self, ast: Vec<Stmt>) -> Vec<TypeCheckedResult> {
@@ -94,7 +100,7 @@ impl TypeChecker {
 
                         return TypeCheckedResult::err_mismatched_types(
                             &struct_field_def_stmt.ty.to_cbml_code(),
-                            &default_value.to_cbml_type().to_cbml_code(),
+                            &default_value.to_cbml_code(),
                         );
                     }
                 }
@@ -107,7 +113,7 @@ impl TypeChecker {
                 }
                 return TypeCheckedResult::Ok;
             }
-            Stmt::TypeAliasStmt(name, cbml_type) => {
+            Stmt::TypeAliasStmt(_name, _cbml_type) => {
                 // 如果使用了 Custom 类型, 这个类型是否存在.
 
                 todo!();
@@ -233,7 +239,7 @@ impl TypeChecker {
                     if !self.is_same_type(&union_def.base_type, x) {
                         return TypeCheckedResult::err_mismatched_types(
                             &union_def.base_type.to_cbml_code(),
-                            &x.to_cbml_type().to_cbml_code(),
+                            &x.to_cbml_code(),
                         );
                     }
                 }
@@ -268,11 +274,27 @@ impl TypeChecker {
                 return TypeCheckedResult::Ok;
             }
 
-            Stmt::Use(url) => {
+            Stmt::Use(_url) => {
+                if self.is_typedefed {
+                    return TypeCheckedResult::err_use_can_only_def_onece();
+                } else {
+                    self.is_typedefed = true;
+                }
+
                 // 如果是文件 url 则读取文件
                 // 如果是网络 url 则下载这个文件.
+                let re = std::fs::read_to_string(_url);
+                match re {
+                    Ok(code) => {
+                        // println!("{code}");
+                        self.read_typedefs(&code);
+                    }
+                    Err(e) => {
+                        eprintln!("error: {:?}", e);
+                    }
+                };
 
-                todo!();
+                return TypeCheckedResult::Ok;
             }
             Stmt::Asignment(asign) => {
                 // 检查 field_name 在 typedef 文件中是否存在.
@@ -290,12 +312,12 @@ impl TypeChecker {
                         if !self.is_same_type(&ty, &asign.value) {
                             return TypeCheckedResult::err_mismatched_types(
                                 &ty.to_cbml_code(),
-                                &ty.to_cbml_code(),
+                                &asign.value.to_cbml_code(),
                             );
                         };
                     }
                     None => {
-                        return TypeCheckedResult::err_cannot_find_type(&asign.field_name);
+                        return TypeCheckedResult::err_unknow_field(&asign.field_name);
                     }
                 };
 
@@ -306,48 +328,62 @@ impl TypeChecker {
             Stmt::DocComment(_) => TypeCheckedResult::Ok,
         }
     }
-}
 
-#[derive(Debug)]
-pub enum TypeCheckedResult {
-    Ok,
-    Warning(),
-    Error(String),
-}
+    fn custom_to_raw(&self, need_type: &CbmlType) -> CbmlType {
+        let mut re = need_type.clone();
 
-impl TypeCheckedResult {
-    fn is_ok(&self) -> bool {
-        match self {
-            TypeCheckedResult::Ok => true,
-            _ => false,
+        while let CbmlType::Custom(name) = need_type {
+            match self.custom_types.get(name) {
+                Some(ty) => re = ty.clone(),
+                None => todo!(),
+            }
+        }
+
+        return re;
+    }
+
+    fn read_typedefs(&mut self, code: &str) {
+        use crate::parser::cbml_parser::CbmlParser;
+
+        let tokens = tokenizer(&code)
+            .map_err(|e| {
+                println!("{}", e);
+                return e;
+            })
+            .unwrap();
+
+        // dp(format!("tokens: {:?}", tokens));
+
+        let mut parser = CbmlParser::new(&tokens);
+        let re = parser.parse();
+        match re {
+            Ok(ast) => {
+                // ast.iter().for_each(|s| {
+                //     dp(format!("statement: {:?}", s));
+                // });
+                // dp("start typecheck: ");
+
+                let re = self.typecheck(ast);
+                if re.is_empty() {
+                    dp("没有检查出类型错误.");
+                } else {
+                    // has errors.
+                    re.iter().for_each(|x| {
+                        dp(format!("{:?}", x));
+                    });
+                }
+            }
+            Err(e) => {
+                e.iter().for_each(|s| {
+                    dp(format!("message: {:?}", s.message));
+                    dp(format!("tok: {:?}", s.token));
+                });
+
+                panic!();
+            }
         }
     }
 
-    fn err_cannot_find_type(type_name: &str) -> Self {
-        TypeCheckedResult::Error(format!("connot find type `{}` ", type_name))
-    }
-
-    fn err_mismatched_types(expected: &str, found: &str) -> Self {
-        TypeCheckedResult::Error(format!(
-            "mismatched types, expected `{}` found  `{}` ",
-            expected, found
-        ))
-    }
-
-    fn err_union_duplicated_item(item: &str) -> Self {
-        TypeCheckedResult::Error(format!("union duplicated item: {}", item))
-    }
-}
-
-/// 类型推导
-fn type_inference() {}
-
-trait IsSameType {
-    fn is_same_type(&self, other: &Self) -> bool;
-}
-
-// impl IsSameType for CbmlType {
-impl TypeChecker {
     fn is_same_type(&mut self, need_type: &CbmlType, literal: &Literal) -> bool {
         match need_type {
             CbmlType::String => match literal {
@@ -365,12 +401,60 @@ impl TypeChecker {
             CbmlType::Any => todo!(),
             CbmlType::Array { inner_type } => match literal {
                 Literal::Array(literals) => {
-                    return literals.iter().all(|x| self.is_same_type(inner_type, x));
+                    return literals.iter().all(|x| {
+                        // #[cfg(debug_assertions)]
+                        // {
+                        //     dbg!(inner_type);
+                        //     dbg!(x);
+                        // };
+
+                        // if !(self.is_same_type(inner_type, x)) {
+                        //     dbg!(inner_type);
+                        //     dbg!(x);
+                        // }
+
+                        self.is_same_type(inner_type, x)
+                    });
                 }
                 _ => false,
             },
             CbmlType::Struct(struct_field_def_stmts) => {
-                literal.to_cbml_type() == CbmlType::Struct(struct_field_def_stmts.clone())
+                let mut struct_field_def_stmts = struct_field_def_stmts.clone();
+                struct_field_def_stmts.sort_by(|x, y| x.field_name.cmp(&y.field_name));
+
+                match literal {
+                    Literal::Struct(asignment_stmts) => {
+                        if asignment_stmts.len() != struct_field_def_stmts.len() {
+                            return false;
+                        }
+
+                        let mut asignment_stmts = asignment_stmts.clone();
+
+                        asignment_stmts.sort_by(|x, y| x.field_name.cmp(&y.field_name));
+
+                        let afsdf = struct_field_def_stmts.iter().zip(asignment_stmts).all(|x| {
+                            let a = x.0;
+                            let b = x.1;
+
+                            // #[cfg(debug_assertions)]
+                            // {
+                            //     dbg!(&a.ty);
+                            //     dbg!(&b.value);
+                            //     dbg!(&b.value.to_cbml_type());
+                            //     dbg!(&a.ty == &b.value.to_cbml_type());
+                            // }
+
+                            a.field_name == b.field_name && self.is_same_type(&a.ty, &b.value)
+                        });
+
+                        return afsdf;
+                    }
+                    Literal::Todo => todo!(),
+                    Literal::Default => todo!(),
+
+                    _ => false,
+                }
+                // return literal.to_cbml_type() == CbmlType::Struct(struct_field_def_stmts.clone());
             }
             CbmlType::Union {
                 base_type,
@@ -383,23 +467,29 @@ impl TypeChecker {
             CbmlType::Enum {
                 enum_name: _enum_name,
                 fields,
-            } => match literal {
-                Literal::EnumField {
-                    field_name,
-                    literal: x,
-                } => {
-                    let enum_field = EnumField {
-                        field_name: field_name.clone(),
-                        ty: x.to_cbml_type(),
-                    };
+            } => {
+                //
+                match literal {
+                    Literal::EnumFieldLiteral {
+                        field_name: enum_field_literal_name,
+                        literal: lit,
+                    } => {
+                        let re = fields.iter().any(|x| {
+                            &x.field_name == enum_field_literal_name
+                                && self.is_same_type(&x.ty, lit)
+                        });
 
-                    fields.contains(&enum_field)
+                        return re;
+                    }
+                    _ => false,
                 }
-                _ => false,
-            },
+            }
             CbmlType::Custom(type_custom_name) => {
                 let re = self.custom_types.get(type_custom_name);
+                // dbg!(re);
+                // dbg!(literal );
 
+                // todo!();
                 return match re {
                     Some(t) => {
                         let need = t.clone();
@@ -483,6 +573,52 @@ impl TypeChecker {
         // }
     }
 }
+
+#[derive(Debug)]
+pub enum TypeCheckedResult {
+    Ok,
+    Warning,
+    Error(String),
+}
+
+impl TypeCheckedResult {
+    fn is_ok(&self) -> bool {
+        match self {
+            TypeCheckedResult::Ok => true,
+            _ => false,
+        }
+    }
+
+    fn err_cannot_find_type(type_name: &str) -> Self {
+        TypeCheckedResult::Error(format!("connot find type `{}` ", type_name))
+    }
+
+    fn err_unknow_field(field_name: &str) -> Self {
+        TypeCheckedResult::Error(format!("unknow field `{}` ", field_name))
+    }
+
+    fn err_mismatched_types(expected: &str, found: &str) -> Self {
+        TypeCheckedResult::Error(format!(
+            "mismatched types, expected `{}` found  `{}` ",
+            expected, found
+        ))
+    }
+
+    fn err_union_duplicated_item(item: &str) -> Self {
+        TypeCheckedResult::Error(format!("union duplicated item: {}", item))
+    }
+
+    fn err_use_can_only_def_onece() -> Self {
+        TypeCheckedResult::Error(format!("use can only def onece"))
+    }
+}
+
+/// 类型推导
+fn type_inference() {}
+
+// trait IsSameType {
+//     fn is_same_type(&self, other: &Self) -> bool;
+// }
 
 trait ToCbmltype {
     fn to_cbmltype(&self) -> CbmlType;
@@ -628,12 +764,12 @@ mod tests {
             ],
         };
 
-        let enum_b = Literal::EnumField {
+        let enum_b = Literal::EnumFieldLiteral {
             field_name: "field1".into(),
             literal: Literal::String("()".into()).into(),
         };
 
-        let enum_c = Literal::EnumField {
+        let enum_c = Literal::EnumFieldLiteral {
             field_name: "field1".into(),
             literal: Literal::LiteralNone.into(),
         };
