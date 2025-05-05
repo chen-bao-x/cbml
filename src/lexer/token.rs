@@ -1,5 +1,4 @@
-use std::fmt::write;
-
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
@@ -71,6 +70,7 @@ pub enum TokenKind {
     NumberTy,  // number
     BooleanTy, // bool
 
+    #[allow(dead_code)]
     Invalid(char), // invalid character
 
     EOF, // end of file
@@ -140,12 +140,13 @@ impl TokenKind {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Location {
     pub start: Position,
     pub end: Position,
 }
-
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Position {
     pub line: usize,

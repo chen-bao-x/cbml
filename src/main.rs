@@ -1,19 +1,40 @@
 mod lexer;
 mod parser;
 mod typecheck;
+
+#[allow(dead_code)]
 fn main() {
     tests::test_parser();
+
+    // config
+    //
+    // useStmt | linecomment | blockComment | asignment
+    //
+
+    // typedef
+    //
+}
+
+fn fasdf(count: usize, f: fn()) {
+    use std::time::Instant;
+    let start = Instant::now(); // 记录开始时间
+
+    for _ in 0..count {
+        f();
+    }
+
+    let duration = start.elapsed(); // 计算耗时
+
+    println!("耗时：{:?}", duration);
 }
 
 // #[cfg(test)]
 mod tests {
 
-    use crate::{dp, lexer::tokenizer};
+    use crate::{dp, fasdf, lexer::tokenizer, typecheck::typecheck};
 
     // #[test]
     pub fn test_parser() {
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
-
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml");
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
@@ -24,14 +45,41 @@ mod tests {
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/5_string.cbml");
 
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/6_optinal.cbml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/6_optinal.cbml");
+
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
+
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
+    }
+
+    #[test]
+    fn testr_enum() {
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
+    }
+
+    #[test]
+    fn testr_arr() {
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
+    }
+
+    #[test]
+    fn test_1() {
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
+    }
+
+    #[test]
+    fn test_struct() {
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
     }
 
     fn asdfasdfsdf(path: &str) {
-        use crate::parser::cbml_parser::CbmlParser;
-
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
+        dsafdasfsadf(&code);
+    }
+
+    fn dsafdasfsadf(code: &str) {
+        use crate::parser::cbml_parser::CbmlParser;
 
         let tokens = tokenizer(&code)
             .map_err(|e| {
@@ -46,8 +94,15 @@ mod tests {
         let re = parser.parse();
         match re {
             Ok(ast) => {
-                ast.iter().for_each(|s| {
-                    dp(format!("statement: {:?}", s));
+                // ast.iter().for_each(|s| {
+                //     dp(format!("statement: {:?}", s));
+                // });
+
+                // dp("start typecheck: ");
+
+                let re = typecheck(ast);
+                re.iter().for_each(|x| {
+                    dp(format!("{:?}", x));
                 });
             }
             Err(e) => {
@@ -55,6 +110,8 @@ mod tests {
                     dp(format!("message: {:?}", s.message));
                     dp(format!("tok: {:?}", s.token));
                 });
+
+                panic!();
             }
         }
     }

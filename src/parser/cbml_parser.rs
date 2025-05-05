@@ -1,6 +1,6 @@
 use super::{
     ParserError,
-    ast::stmt::{Asignment, CbmlType, Literal, Stmt, StructFieldDefinition, StructTy, UnionTy},
+    ast::stmt::{AsignmentStmt, CbmlType, Literal, Stmt, StructFieldDefStmt, StructDef, UnionDef},
 };
 use crate::{
     dp,
@@ -8,7 +8,7 @@ use crate::{
 };
 use crate::{
     lexer::token::Token,
-    parser::ast::stmt::{EnumFieldDefinition, EnumTy},
+    parser::ast::stmt::{EnumField, EnumDef},
 };
 
 /// cbml 解析器
@@ -48,8 +48,12 @@ impl<'a> CbmlParser<'a> {
             match re {
                 Ok(s) => statements.push(s),
                 Err(e) => {
-                    errors.push(e);
-                    self.current_position += 1; // 移动到下一个 Token
+                    // errors.push(e);
+                    // self.current_position += 1; // 移动到下一个 Token
+
+                    println!("{:?}", e);
+
+                    panic!();
                 }
             }
             _ = self.eat_zeor_or_multy(tk::NewLine);
@@ -80,7 +84,7 @@ impl<'a> CbmlParser<'a> {
                     // 解析结构体成员定义.
 
                     let field_def = self.parse_struct_field_def()?;
-                    return Ok(Stmt::StructFieldDef(field_def));
+                    return Ok(Stmt::FileFieldStmt(field_def));
                 } else if next_tok.kind.kind_is(&tk::LParen) {
                     // 解析 enum literal
 
@@ -159,7 +163,7 @@ impl<'a> CbmlParser<'a> {
                 self.consume(tk::QuestionMark)?;
                 let inner_type = self.parse_type_sign()?;
                 return Ok(CbmlType::Optional {
-                    ty: Box::new(inner_type),
+                    inner_type: Box::new(inner_type),
                 });
             }
             tk::LBracket => {
@@ -180,7 +184,7 @@ impl<'a> CbmlParser<'a> {
                 // 结构体类型
                 self.consume(tk::LBrace)?;
 
-                let mut fields: Vec<StructFieldDefinition> = vec![];
+                let mut fields: Vec<StructFieldDefStmt> = vec![];
                 let mut count = 0;
 
                 while !self.is_at_end() {
@@ -219,7 +223,7 @@ impl<'a> CbmlParser<'a> {
 
             x => {
                 match x {
-                    tk::Pipe => {
+                    tk::Pipe | tk::Number(_) | tk::String(_) => {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
@@ -229,6 +233,7 @@ impl<'a> CbmlParser<'a> {
                             alowd_values: alowd_values,
                         });
                     }
+
                     _ => {}
                 };
 
@@ -366,7 +371,7 @@ impl<'a> CbmlParser<'a> {
 
                 self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
 
-                let mut fields: Vec<Asignment> = vec![];
+                let mut fields: Vec<AsignmentStmt> = vec![];
 
                 let mut count = 0;
                 while !self.is_at_end() {
@@ -400,7 +405,7 @@ impl<'a> CbmlParser<'a> {
 
                                 let value = self.parse_literal()?;
 
-                                fields.push(Asignment {
+                                fields.push(AsignmentStmt {
                                     field_name: name.clone(),
                                     value,
                                 });
@@ -474,10 +479,10 @@ impl<'a> CbmlParser<'a> {
 
             self.consume_stmt_end_token()?;
 
-            return Ok(Stmt::Asignment {
+            return Ok(Stmt::Asignment(AsignmentStmt {
                 field_name: name,
                 value,
-            });
+            }));
         } else {
             dp(format!(
                 "parse_asignment error: unkonow token {:?}",
@@ -508,7 +513,7 @@ impl<'a> CbmlParser<'a> {
     }
 
     /// name : string
-    fn parse_struct_field_def(&mut self) -> Result<StructFieldDefinition, ParserError> {
+    fn parse_struct_field_def(&mut self) -> Result<StructFieldDefStmt, ParserError> {
         // struct_field_def = identifier Colon type_sign default_value{0,1}
         // default_value = default literal
 
@@ -524,7 +529,7 @@ impl<'a> CbmlParser<'a> {
 
             // self.consume_stmt_end_token()?;
 
-            return Ok(StructFieldDefinition {
+            return Ok(StructFieldDefStmt {
                 field_name: name,
                 ty: field_type,
                 default: default_value,
@@ -551,7 +556,7 @@ impl<'a> CbmlParser<'a> {
         if let tk::Identifier(name) = self.consume(tk::Identifier("".into()))?.kind.clone() {
             self.consume(tk::LBrace)?;
 
-            let mut fields: Vec<StructFieldDefinition> = vec![];
+            let mut fields: Vec<StructFieldDefStmt> = vec![];
             let mut count = 0;
 
             while !self.is_at_end() {
@@ -584,8 +589,8 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::RBrace)?;
 
-            return Ok(Stmt::StructDef(StructTy {
-                name,
+            return Ok(Stmt::StructDefStmt(StructDef {
+                struct_name: name,
                 fields: fields,
             }));
         } else {
@@ -594,30 +599,38 @@ impl<'a> CbmlParser<'a> {
                 self.peek().clone()
             ));
             todo!();
-            return Err(ParserError::new(
-                format!("parse_struct_def error: unkonow token {:?}", self.peek()),
-                Some(self.peek().clone()),
-            ));
+            // return Err(ParserError::new(
+            //     format!("parse_struct_def error: unkonow token {:?}", self.peek()),
+            //     Some(self.peek().clone()),
+            // ));
         };
     }
 
     fn parse_union_fields(&mut self) -> Result<Vec<Literal>, ParserError> {
-        // union_field = pipe{1} literal
-
         let mut literals: Vec<Literal> = vec![];
 
         let mut count = 0;
 
         loop {
-            if count == 0 {
-                _ = self.consume(tk::Pipe); // 第一个 pipe 符号可有可无.
+            // fields = first{0,1} union_field{1,}
+            // first = pipe{0,1} literal
+            // union_field = pipe literal
 
-                let literal = self.parse_literal()?;
+            if count == 0 {
+                // first = pipe{0,1} literal
+
+                _ = self.consume(tk::Pipe); // pipe{0,1} 第一个 pipe 符号可有可无.
+
+                let literal = self.parse_literal()?; // literal
                 literals.push(literal);
             } else {
+                // union_field = pipe literal
+
+                _ = self.eat_zeor_or_multy(tk::NewLine)?; // NewLine{0,}
+
                 if self.peek().kind.clone().kind_is(&tk::Pipe) {
-                    self.consume(tk::Pipe)?;
-                    let literal = self.parse_literal()?;
+                    self.consume(tk::Pipe)?; // pipe
+                    let literal = self.parse_literal()?; // literal
                     literals.push(literal);
                 } else {
                     break;
@@ -663,7 +676,7 @@ impl<'a> CbmlParser<'a> {
 
             self.eat_zeor_or_multy(tk::NewLine)?; // newline{0,}
 
-            let mut fields: Vec<EnumFieldDefinition> = vec![];
+            let mut fields: Vec<EnumField> = vec![];
 
             {
                 // enum_field{0,}
@@ -701,8 +714,8 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::RBrace)?;
 
-            let enum_type = EnumTy {
-                name: enum_name,
+            let enum_type = EnumDef {
+                enum_name,
                 fields,
             };
             return Ok(Stmt::EnumDef(enum_type));
@@ -761,16 +774,16 @@ impl<'a> CbmlParser<'a> {
 
         let alowd_values = self.parse_union_fields()?; // union_field{1,}
 
-        self.consume_stmt_end_token()?;
+        // self.consume_stmt_end_token()?;
 
-        return Ok(Stmt::UnionDef(UnionTy {
-            name: union_name,
+        return Ok(Stmt::UnionDef(UnionDef {
+            union_name,
             base_type: base_type,
-            alowd_values,
+            allowed_values: alowd_values,
         }));
     }
 
-    fn parse_enum_field(&mut self) -> Result<EnumFieldDefinition, ParserError> {
+    fn parse_enum_field(&mut self) -> Result<EnumField, ParserError> {
         // enum_field =   identifier LParent typedef RParent newline
 
         // let field_name_tok = self.consume(tk::Identifier("".into()))?; // identifier
@@ -785,8 +798,8 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::NewLine)?;
 
-            let e = EnumFieldDefinition {
-                name: field_name,
+            let e = EnumField {
+                field_name,
                 ty,
             };
             dp(format!("{:?}", e));
@@ -807,7 +820,7 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::RParen)?; // RParent
 
-            return Ok(Literal::Enum {
+            return Ok(Literal::EnumField {
                 field_name: name,
                 literal: lit.into(),
             });
@@ -857,7 +870,11 @@ impl<'a> CbmlParser<'a> {
             return Ok(tok);
         } else {
             Err(ParserError::new(
-                format!("Expected token: {:?}, but found: {:?}", kind, self.peek()),
+                format!(
+                    "Expected token: TokenKind::{:?}, but found: TokenKind::{:?}",
+                    kind,
+                    self.peek().kind
+                ),
                 Some(self.peek().clone()),
             ))
         }

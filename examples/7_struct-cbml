@@ -1,0 +1,7 @@
+struct Person { 
+    name: string default ""
+    
+    age: number default ""
+    
+}
+

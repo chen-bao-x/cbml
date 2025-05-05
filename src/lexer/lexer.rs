@@ -2,7 +2,7 @@ use super::token::{Location, Position, Token, TokenKind as tk};
 use crate::dp;
 use std::num::ParseFloatError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum State {
     Initial,
     InIdentifier,
@@ -14,6 +14,7 @@ enum State {
     InBlockComment, // 块注释 /* */
     InLineComment,  // 单行注释 //
 }
+
 #[derive(Debug)]
 pub struct Lexer {
     input: Vec<char>,
@@ -35,11 +36,16 @@ impl Lexer {
             input: code.chars().collect(),
             position: 0,
             line: 1,
-            column: 1,
+            column: 0,
             state: State::Initial,
             start_pos: None,
             end_pos: None,
         }
+    }
+
+    fn push(&mut self, ch: char) {
+        self.current.push(ch);
+        self.advance().unwrap();
     }
 
     fn advance(&mut self) -> Option<char> {
@@ -47,7 +53,7 @@ impl Lexer {
             self.position += 1;
             if *ch == '\n' {
                 self.line += 1;
-                self.column = 1;
+                self.column = 0;
             } else {
                 self.column += 1;
             }
@@ -57,45 +63,54 @@ impl Lexer {
         }
     }
 
-    fn fall_back(&mut self) {
-        if let Some(ch) = self.input.get(self.position) {
-            self.position -= 1;
-            if *ch == '\n' {
-                self.line -= 1;
-                self.column = 1; // todo!() 上一行的最后一个 column
-            } else {
-                self.column -= 1;
-            }
-            // return Some(*ch);
-        } else {
-            // return None;
-            todo!();
-        }
-    }
+    // fn fall_back(&mut self) {
+    //     if let Some(ch) = self.input.get(self.position) {
+    //         self.position -= 1;
+    //         if *ch == '\n' {
+    //             self.line -= 1;
+    //             self.column = 1; // todo!() 上一行的最后一个 column
+    //         } else {
+    //             self.column -= 1;
+    //         }
+    //         // return Some(*ch);
+    //     } else {
+    //         // return None;
+    //         todo!();
+    //     }
+    // }
 
     fn peek(&self) -> Option<char> {
         self.input.get(self.position).copied()
     }
 
-    fn peek_next(&self, n: usize) -> Option<char> {
-        self.input.get(self.position + n).copied()
-    }
+    // fn peek_next(&self, n: usize) -> Option<char> {
+    //     self.input.get(self.position + n).copied()
+    // }
 
     pub fn tokenize(&mut self) -> Result<Vec<Token>, String> {
         let mut tokens = Vec::new();
-        while let Some(ch) = self.advance() {
+
+        while let Some(ch) = self.peek() {
+            dp(format!("{ch}"));
+            dp(format!("{:?}", self.get_current_position()));
+
             match self.state {
                 State::Initial => {
                     match ch {
-                        ' ' | '\t' => { /* skip whitespace */ }
+                        ' ' | '\t' => {
+                            /* skip whitespace */
+                            self.advance(); // eat this character
+                        }
                         '\n' => {
+                            self.advance(); // eat this character
+
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
                             tokens.push(Token::new(tk::NewLine, loc));
                         }
                         '(' => {
-                            // tokens.push(Token::new(tk::LParen, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -103,7 +118,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::LParen, loc));
                         }
                         ')' => {
-                            //  tokens.push(Token::new(tk::RParen, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -111,7 +126,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::RParen, loc));
                         }
                         '[' => {
-                            // tokens.push(Token::new(tk::LBracket, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -119,7 +134,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::LBracket, loc));
                         }
                         ']' => {
-                            // tokens.push(Token::new(tk::RBracket, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -127,7 +142,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::RBracket, loc));
                         }
                         '{' => {
-                            //tokens.push(Token::new(tk::LBrace, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -135,7 +150,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::LBrace, loc));
                         }
                         '}' => {
-                            //tokens.push(Token::new(tk::RBrace, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -143,7 +158,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::RBrace, loc));
                         }
                         ',' => {
-                            //tokens.push(Token::new(tk::Comma, self.line, self.column))
+                            self.advance(); // eat this character
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
@@ -151,66 +166,76 @@ impl Lexer {
                             tokens.push(Token::new(tk::Comma, loc));
                         }
                         ':' => {
-                            // tokens.push(Token::new(tk::Colon, self.line, self.column))
+                            self.advance(); // eat this character
+
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
                             tokens.push(Token::new(tk::Colon, loc));
                         }
                         '|' => {
+                            self.advance(); // eat this character
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
                             tokens.push(Token::new(tk::Pipe, loc));
                         }
                         '=' => {
-                            // tokens.push(Token::new(tk::Asign, self.line, self.column))
+                            self.advance(); // eat this character
                             self.mark_start_pos();
                             let loc = self.get_pos();
                             tokens.push(Token::new(tk::Asign, loc));
                         }
                         '?' => {
-                            // tokens.push(Token::new(tk::QuestionMark, self.line, self.column))
+                            self.advance(); // eat this character
                             self.mark_start_pos();
                             let loc = self.get_pos();
                             tokens.push(Token::new(tk::QuestionMark, loc));
                         }
 
                         '"' => {
+                            self.advance(); // eat this character
+                            // self.push(ch);
+                            self.mark_start_pos();
+
                             self.state = State::InString;
                             self.current.clear();
-                            // self.current.push(ch);
                         }
                         '/' => {
                             self.state = State::InLineComment;
                             self.current.clear();
-                            self.current.push(ch);
+
+                            self.push(ch);
                         }
 
                         '0'..='9' => {
                             self.state = State::InNumber;
                             self.current.clear();
-                            self.current.push(ch);
+
+                            self.push(ch);
                         }
                         '+' => {
                             // 正数
-                            self.current.push(ch);
+
+                            self.push(ch);
                             self.state = State::InNumber;
                         }
                         '-' => {
                             // 负数
-                            self.current.push(ch);
+                            self.push(ch);
                             self.state = State::InNumber;
                         }
 
                         // 处理标识符，支持多语言字符
                         x if x.is_alphanumeric() => {
                             self.current.clear();
-                            self.current.push(ch);
+                            self.push(ch);
                             self.state = State::InIdentifier;
                         }
                         // 处理无效字符
                         x => {
+                            self.advance(); // eat this character
+
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
@@ -224,12 +249,12 @@ impl Lexer {
                 State::InIdentifier => {
                     match ch {
                         x if x.is_alphanumeric() || x == '_' => {
-                            self.current.push(ch); // 使用当前字符而不是调用 advance()
+                            self.push(ch);
                         }
 
                         _ => {
                             // let tok = Token::new(
-                            //     tk::Identifier(self.current.clone()).handle_keyword(),
+                            //     tk::Identifier(std::mem::take(&mut self.current)).handle_keyword(),
                             //     self.line,
                             //     self.column,
                             // );
@@ -239,14 +264,14 @@ impl Lexer {
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(
-                                tk::Identifier(self.current.clone()).handle_keyword(),
-                                loc,
-                            ));
+                            let identifier = std::mem::take(&mut self.current);
+
+                            tokens
+                                .push(Token::new(tk::Identifier(identifier).handle_keyword(), loc));
 
                             self.state = State::Initial;
 
-                            self.fall_back();
+                            // self.fall_back();
 
                             self.current.clear();
                         }
@@ -255,7 +280,8 @@ impl Lexer {
                 State::BinarayNumber => {
                     match ch {
                         '0' | '1' => {
-                            self.current.push(ch);
+                            self.push(ch);
+                            self.advance().unwrap();
                         }
                         _ => {
                             let 是负数吗: bool = {
@@ -288,7 +314,7 @@ impl Lexer {
 
                             self.state = State::Initial;
 
-                            self.fall_back();
+                            // self.fall_back();
 
                             self.current.clear();
                         }
@@ -296,7 +322,7 @@ impl Lexer {
                 }
                 State::HexNumber => match ch {
                     '0'..='9' | 'a'..='f' | 'A'..='F' => {
-                        self.current.push(ch);
+                        self.push(ch);
                     }
                     _ => {
                         dp(format!("hex {:?}", self.current));
@@ -331,14 +357,14 @@ impl Lexer {
                         tokens.push(Token::new(tk::Number(hex_value as f64), loc));
 
                         self.state = State::Initial;
-                        self.fall_back();
+                        // self.fall_back();
                         self.current.clear();
                     }
                 },
                 State::InNumber => {
                     match ch {
                         '0'..='9' => {
-                            self.current.push(ch);
+                            self.push(ch);
                         }
                         '.' => {
                             match self.current.find(|x| x == '.') {
@@ -348,16 +374,16 @@ impl Lexer {
                                 }
                                 None => {
                                     // 处理小数点
-                                    self.current.push(ch);
+                                    self.push(ch);
                                 }
                             }
                         }
                         'x' => {
-                            self.current.push(ch);
+                            self.push(ch);
                             self.state = State::HexNumber;
                         }
                         'b' => {
-                            self.current.push(ch);
+                            self.push(ch);
                             self.state = State::BinarayNumber;
                         }
                         _ => {
@@ -376,7 +402,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::Number(num), loc));
 
                             self.state = State::Initial;
-                            self.fall_back();
+                            // self.fall_back();
                             self.current.clear();
                         }
                     };
@@ -385,42 +411,42 @@ impl Lexer {
                 State::InString => {
                     match ch {
                         '"' => {
-                            // self.current.push(ch);
-                            // let tok = Token::new(
-                            //     tk::String(self.current.clone()),
-                            //     self.line,
-                            //     self.column,
-                            // );
-                            // tokens.push(tok);
+                            // string ends.
+                            self.advance();
 
-                            self.mark_start_pos();
+                            self.mark_end_pos();
+
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::String(self.current.clone()), loc));
+                            // self.current 存放 String 字面量的内容.
+
+                            tokens.push(Token::new(
+                                tk::String(std::mem::take(&mut self.current)),
+                                loc,
+                            ));
 
                             self.state = State::Initial;
                             self.current.clear();
                         }
                         '\\' => {
+                            self.advance();
                             // 处理转义字符
+
                             if let Some(next_ch) = self.peek() {
                                 match next_ch {
                                     'n' => {
-                                        self.current.push('\n');
-                                        self.advance();
+                                        self.push('\n');
                                     }
                                     'r' => {
-                                        self.current.push('\r');
-                                        self.advance();
+                                        self.push('\r');
                                     }
                                     't' => {
-                                        self.current.push('\t');
-                                        self.advance();
+                                        self.push('\r');
                                     }
                                     'u' => {
                                         // Unicode 转义 "\u{1F600}"
-                                        // self.current.push(ch);
-                                        self.advance();
+
+                                        self.advance(); // 
 
                                         let mut unicode = String::new();
                                         if let Some(next_ch) = self.peek() {
@@ -458,10 +484,6 @@ impl Lexer {
                                             }
                                         }
 
-                                        println!("{:?}", self.current);
-                                        println!("{:?}", unicode);
-                                        // panic!();
-
                                         if let Ok(unicode) = u32::from_str_radix(&unicode, 16) {
                                             let sadf = match std::char::from_u32(unicode) {
                                                 Some(ch) => ch,
@@ -473,7 +495,7 @@ impl Lexer {
                                                 }
                                             };
 
-                                            self.current.push(sadf);
+                                            self.push(sadf);
                                         } else {
                                             return Err(format!(
                                                 "无效的 unicode 转义序列 {:?}",
@@ -482,25 +504,25 @@ impl Lexer {
                                         }
                                     }
                                     '\\' => {
-                                        self.current.push('\\');
+                                        self.push('\\');
                                         self.advance();
                                     }
                                     '"' => {
-                                        self.current.push('\"');
+                                        self.push('\"');
                                         self.advance();
                                     }
                                     '0' => {
-                                        self.current.push('\0');
+                                        self.push('\0');
                                         self.advance();
                                     }
                                     _ => {
-                                        self.current.push(ch);
+                                        self.push(ch);
                                     }
                                 }
                             }
                         }
                         _ => {
-                            self.current.push(ch);
+                            self.push(ch);
                         }
                     }
                 }
@@ -509,24 +531,21 @@ impl Lexer {
                         '\n' => {
                             // 结束注释
 
-                            // let tok = Token::new(
-                            //     tk::LineComment(self.current.clone()),
-                            //     self.line,
-                            //     self.column,
-                            // );
-                            // tokens.push(tok);
-
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::LineComment(self.current.clone()), loc));
+                            tokens.push(Token::new(
+                                tk::LineComment(std::mem::take(&mut self.current)),
+                                loc,
+                            ));
 
                             self.state = State::Initial;
                             self.current.clear();
                         }
                         '/' => {
                             // 单行注释
-                            self.current.push(ch);
+
+                            self.push(ch);
 
                             match self.current.as_str() {
                                 "//" => {
@@ -540,11 +559,12 @@ impl Lexer {
                         }
                         '*' => {
                             // 多行注释
-                            self.current.push(ch);
+
+                            self.push(ch);
                             self.state = State::InBlockComment;
                         }
                         c => {
-                            self.current.push(c);
+                            self.push(c);
                         }
                     }
                 }
@@ -552,48 +572,39 @@ impl Lexer {
                     match ch {
                         '\n' => {
                             // 结束注释
-                            // let tok = Token::new(
-                            //     TokenKind::DocComment(self.current.clone()),
-                            //     self.line,
-                            //     self.column,
-                            // );
-                            // tokens.push(tok);
 
                             self.mark_start_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::DocComment(self.current.clone()), loc));
+                            tokens.push(Token::new(
+                                tk::DocComment(std::mem::take(&mut self.current)),
+                                loc,
+                            ));
 
                             self.state = State::Initial;
                             self.current.clear();
                         }
                         x => {
-                            self.current.push(x);
+                            self.push(x);
                         }
                     }
                 }
                 State::InBlockComment => {
                     match ch {
                         '*' => {
-                            self.current.push(ch);
+                            self.push(ch);
                             if let Some(next_ch) = self.peek() {
                                 if next_ch == '/' {
                                     // 结束注释
                                     self.advance();
-                                    self.current.push('/');
 
-                                    // let tok = Token::new(
-                                    //     TokenKind::BlockComment(self.current.clone()),
-                                    //     self.line,
-                                    //     self.column,
-                                    // );
-                                    // tokens.push(tok);
+                                    self.push('/');
 
                                     self.mark_start_pos();
                                     let loc = self.get_pos();
 
                                     tokens.push(Token::new(
-                                        tk::BlockComment(self.current.clone()),
+                                        tk::BlockComment(std::mem::take(&mut self.current)),
                                         loc,
                                     ));
 
@@ -605,7 +616,7 @@ impl Lexer {
                             }
                         }
                         x => {
-                            self.current.push(x);
+                            self.push(x);
                         }
                     }
                 }
@@ -617,36 +628,17 @@ impl Lexer {
             if !self.current.is_empty() {
                 match self.state {
                     State::InIdentifier => {
-                        // let tok = Token {
-                        //     kind: TokenKind::Identifier(self.current.clone()).handle_keyword(),
-                        //     line: self.line,
-                        //     column: self.column,
-                        // };
-                        // tokens.push(tok);
-
                         self.mark_start_pos();
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(
-                            tk::Identifier(self.current.clone()).handle_keyword(),
+                            tk::Identifier(std::mem::take(&mut self.current)).handle_keyword(),
                             loc,
                         ));
 
                         self.current.clear();
                     }
                     State::InNumber => {
-                        // let tok = Token {
-                        //     // kind: TokenKind::HexNumber(self.current.clone()),
-                        //     kind: TokenKind::Number(
-                        //         self.current
-                        //             .parse()
-                        //             .map_err(|e: ParseFloatError| e.to_string())?,
-                        //     ),
-                        //     line: self.line,
-                        //     column: self.column,
-                        // };
-                        // tokens.push(tok);
-
                         self.mark_start_pos();
                         let loc = self.get_pos();
 
@@ -661,12 +653,7 @@ impl Lexer {
 
                         self.current.clear();
                     }
-                    // State::InString => {
-                    //     tokens.push(Token::new(TokenKind::Invalid('"'), &self));
-                    // }
-                    // State::InChar => {
-                    //     tokens.push(Token::new(TokenKind::Invalid('\''), &self));
-                    // }
+
                     State::HexNumber => {
                         let 是负数吗: bool = {
                             if &self.current[0..1] == "-" {
@@ -687,11 +674,6 @@ impl Lexer {
                                 v as f64
                             }
                         };
-
-                        // let tok =
-                        //     Token::new(TokenKind::Number(hex_value as f64), self.line, self.column);
-
-                        // tokens.push(tok);
 
                         self.mark_start_pos();
                         let loc = self.get_pos();
@@ -720,11 +702,6 @@ impl Lexer {
                             binary_value as f64
                         };
 
-                        // let tok =
-                        //     Token::new(tk::Number(binary_value as f64), self.line, self.column);
-
-                        // tokens.push(tok);
-
                         self.mark_start_pos();
                         let loc = self.get_pos();
 
@@ -734,18 +711,18 @@ impl Lexer {
                     }
 
                     State::InLineComment => {
-                        // let tok = Token::new(
-                        //     tk::LintComment(self.current.clone()),
-                        //     self.line,
-                        //     self.column,
-                        // );
-                        // tokens.push(tok);
-
                         self.mark_start_pos();
                         let loc = self.get_pos();
 
-                        tokens.push(Token::new(tk::LineComment(self.current.clone()), loc));
+                        tokens.push(Token::new(
+                            tk::LineComment(std::mem::take(&mut self.current)),
+                            loc,
+                        ));
                     }
+                    // State::Initial => todo!(),
+                    // State::InString => todo!(),
+                    // State::InDocComment => todo!(),
+                    // State::InBlockComment => todo!(),
                     _ => {
                         dp(format!("{:?}", self.state));
                         dp(format!("{:?}", self.current));
@@ -769,19 +746,16 @@ impl Lexer {
 
     fn get_pos(&mut self) -> Location {
         let start = match self.start_pos.clone() {
-            Some(p) => {
-                self.start_pos = None;
-                p
-            }
+            Some(p) => p,
             None => todo!(),
         };
         let end = match self.end_pos.clone() {
-            Some(p) => {
-                self.end_pos = None;
-                p
-            }
+            Some(p) => p,
             None => self.get_current_position(),
         };
+
+        self.start_pos = None;
+        self.end_pos = None;
 
         return Location { start, end };
     }

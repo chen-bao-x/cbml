@@ -1,9 +1,9 @@
 pub use ast::stmt::Stmt;
-use cbml_parser::CbmlParser;
+pub use cbml_parser::CbmlParser;
 
 use crate::lexer::token::Token;
 
-mod ast;
+pub mod ast;
 pub mod cbml_parser;
 
 /// 解析 Token 列表并返回 AST

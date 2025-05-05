@@ -1,54 +1,76 @@
+use core::fmt;
+
+struct File {
+    val: Vec<AsignmentStmt>,
+}
+
+/// StructFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
+// struct TypedefFile {
+//     val: Vec<>,
+// }
+
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Use(String), // use "path/to/file"
 
     /// name = "hello"  identifier asignment literal
-    Asignment {
-        field_name: String,
-        value: Literal,
-    },
+    Asignment(AsignmentStmt),
 
-    StructFieldDef(StructFieldDefinition), // name : type; 文件的 field,
-    TypeAlias(String, CbmlType),           // type name = type
-    StructDef(StructTy),
-    EnumDef(EnumTy), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
-    UnionDef(UnionTy), // 具名 union
+    /// 在文件中定义一个属性.
+    FileFieldStmt(StructFieldDefStmt), // name : type; 文件的 field,
+    TypeAliasStmt(String, CbmlType),   // type name = type
+
+    StructDefStmt(StructDef),
+    EnumDef(EnumDef), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
+    UnionDef(UnionDef), // 具名 union
 
     LineComment(String),
     BlockComment(String),
     DocComment(String),
 }
 
+/// 赋值语句,
+/// name = "hello"
 #[derive(Debug, Clone, PartialEq)]
-pub struct Asignment {
+pub struct AsignmentStmt {
     pub field_name: String,
     pub value: Literal,
 }
 
+/// 属性类型申明
 /// name: string
 /// name: string default "hello"
-#[derive(Debug, Clone)]
-pub struct StructFieldDefinition {
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructFieldDefStmt {
     pub field_name: String,
     pub ty: CbmlType,
     pub default: Option<Literal>,
 }
 
-#[derive(Debug, Clone)]
-pub struct EnumFieldDefinition {
-    pub name: String,
+/// 枚举属性申明
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumField {
+    pub field_name: String,
     pub ty: CbmlType,
 }
 
+/// 字面量
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     String(String),
     Number(f64),
     Boolean(bool),
-    Array(Vec<Literal>),    // [1,2,2]
-    Struct(Vec<Asignment>), // 结构体字面量暂时先不做.
-    Union(Vec<Literal>),
-    Enum {
+    Array(Vec<Literal>),        // [1,2,2]
+    Struct(Vec<AsignmentStmt>), // 结构体字面量暂时先不做.
+
+    //  union 字面量? 娜 union(string) 的字面量是 string
+    // Union(Vec<Literal>),
+
+    // Optional,
+    // Any,
+    EnumField {
         field_name: String,
         literal: Box<Literal>,
     },
@@ -71,8 +93,61 @@ impl Literal {
             (LiteralNone, LiteralNone) => true,
             (Todo, Todo) => true,
             (Default, Default) => true,
-            (Union(_), Union(_)) => true,
+            // (Union(_), Union(_)) => true,
             _ => false,
+        }
+    }
+
+    pub fn to_cbml_type(&self) -> CbmlType {
+        match self {
+            Literal::String(_) => CbmlType::String,
+            Literal::Number(_) => CbmlType::Number,
+            Literal::Boolean(_) => CbmlType::Boolean,
+            Literal::Array(literals) => {
+                if let Some(first) = literals.first() {
+                    let first_type = first.to_cbml_type();
+                    if literals.iter().all(|x| x.to_cbml_type() == first_type) {
+                        // all save type
+                        return CbmlType::Array {
+                            inner_type: Box::new(first_type),
+                        };
+                    } else {
+                        // 元素类型各有不同
+                    }
+                } else {
+                    // literals.len() == 0
+                };
+
+                return CbmlType::Array {
+                    inner_type: Box::new(CbmlType::Any),
+                };
+            }
+            Literal::Struct(s) => {
+                let mut arr: Vec<StructFieldDefStmt> = vec![];
+
+                for x in s {
+                    arr.push(StructFieldDefStmt {
+                        field_name: x.field_name.clone(),
+                        ty: x.value.to_cbml_type(),
+                        default: None,
+                    });
+                }
+
+                return CbmlType::Struct(arr);
+            }
+            // Literal::Union(u) => {
+
+            //     CbmlType::Union {
+            //         base_type: Box::new(CbmlType::Any),
+            //         alowd_values: vec![],
+            //     };
+
+            //     todo!()
+            // },
+            Literal::LiteralNone => CbmlType::Any,
+            Literal::Todo => todo!(),
+            Literal::Default => todo!(),
+            Literal::EnumField { .. } => todo!(),
         }
     }
 
@@ -94,31 +169,30 @@ impl Literal {
                 return Literal::from_vec_literal(arr);
             }
             _ => {
-                if all_same_kind(arr) {
+                if Self::all_same_kind(arr) {
                     return Literal::from_vec_literal(arr);
                 } else {
                     return TypeInference::Inferenced(CbmlType::Any);
                 }
             }
         }
-
-        fn all_same_kind(arr: &[Literal]) -> bool {
-            match arr.len() {
-                0 => {
-                    panic!();
-                }
-                1 => {
-                    return true;
-                }
-                _ => {
-                    let first = arr[0].clone();
-                    for i in 1..arr.len() {
-                        if !first.is_same_kind(&arr[i]) {
-                            return false;
-                        }
+    }
+    fn all_same_kind(arr: &[Literal]) -> bool {
+        match arr.len() {
+            0 => {
+                panic!();
+            }
+            1 => {
+                return true;
+            }
+            _ => {
+                let first = arr[0].clone();
+                for i in 1..arr.len() {
+                    if !first.is_same_kind(&arr[i]) {
+                        return false;
                     }
-                    return true;
                 }
+                return true;
             }
         }
     }
@@ -138,7 +212,7 @@ impl Literal {
                 });
             }
             Literal::Struct(fields) => {
-                let asdf: Vec<StructFieldDefinition> = fields
+                let asdf: Vec<StructFieldDefStmt> = fields
                     .iter()
                     .map(|x| {
                         let re = Literal::from_vec_literal(&[x.value.clone()]);
@@ -148,7 +222,7 @@ impl Literal {
                             TypeInference::InferenceUnkonw => CbmlType::Any,
                         };
 
-                        return StructFieldDefinition {
+                        return StructFieldDefStmt {
                             field_name: x.field_name.clone(),
                             ty: ty,
                             default: None,
@@ -161,25 +235,27 @@ impl Literal {
             Literal::LiteralNone => TypeInference::InferenceUnkonw,
             Literal::Todo => todo!(),
             Literal::Default => todo!(),
-            Literal::Union(literals) => {
-                return Literal::union_base_type_2(literals);
-            }
-            Literal::Enum {
+            // Literal::Union(literals) => {
+            //     return Literal::union_base_type_2(literals);
+            // }
+            Literal::EnumField {
                 field_name,
                 literal,
             } => {
-                let re = Literal::from_vec_literal(&[*literal.clone()]);
+                // let re = Literal::from_vec_literal(&[*literal.clone()]);
 
-                let ty: CbmlType = match re {
-                    TypeInference::Inferenced(cbml_type) => cbml_type,
-                    TypeInference::UnInference => CbmlType::Any,
-                    TypeInference::InferenceUnkonw => CbmlType::Any,
-                };
+                // let ty: CbmlType = match re {
+                //     TypeInference::Inferenced(cbml_type) => cbml_type,
+                //     TypeInference::UnInference => CbmlType::Any,
+                //     TypeInference::InferenceUnkonw => CbmlType::Any,
+                // };
 
-                return TypeInference::Inferenced(CbmlType::Enum {
-                    field_name: field_name.clone(),
-                    field_type: ty.into(),
-                });
+                // return TypeInference::Inferenced(CbmlType::Enum {
+                //     field_name: field_name.clone(),
+                //     field_type: ty.into(),
+                // });
+
+                todo!();
             }
         };
     }
@@ -207,32 +283,156 @@ impl Literal {
     }
 }
 
+impl Literal {
+    pub fn to_cbml_code(&self) -> String {
+        match self {
+            Literal::String(s) => {
+                let mut re = String::new();
+                re.push_str(&format!("\"{}\"", s));
+                return re;
+            }
+            Literal::Number(n) => {
+                let mut re = String::new();
+                re.push_str(&format!("{}", n));
+                return re;
+            }
+            Literal::Boolean(b) => {
+                let mut re = String::new();
+                re.push_str(&format!("{}", b));
+                return re;
+            }
+            Literal::Array(literals) => {
+                let mut re = String::new();
+                re.push_str("[");
+                for l in literals {
+                    re.push_str(&format!("{}, ", l.to_cbml_code()));
+                }
+                re.push_str("]");
+                return re;
+            }
+            Literal::Struct(asignment_stmts) => {
+                let mut re = String::new();
+                re.push_str("{");
+                for a in asignment_stmts {
+                    re.push_str(&format!("{}: {}, ", a.field_name, a.value.to_cbml_code()));
+                }
+                re.push_str("}");
+                return re;
+            }
+
+            Literal::EnumField {
+                field_name: _field_name,
+                literal: _literal,
+            } => todo!("暂时还不支持 enum 字面量"),
+            Literal::LiteralNone => {
+                let mut re = String::new();
+                re.push_str("none");
+                return re;
+            }
+            Literal::Todo => {
+                let mut re = String::new();
+                re.push_str("todo");
+                return re;
+            }
+            Literal::Default => {
+                let mut re = String::new();
+                re.push_str("default");
+                return re;
+            }
+        }
+    }
+}
+
 /// 自带的几个基础类型
 /// struct enum union 支持 匿名类型.
-#[derive(Debug, Clone)]
+// #[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CbmlType {
     String,  // string
     Number,  // number
     Boolean, // bool
+    Any,     // any
+
+    /// 匿名数组类型
+    /// [Type]
     Array {
         inner_type: Box<CbmlType>,
-    }, // [Type], // 数组类型
-    Struct(Vec<StructFieldDefinition>), // 匿名结构体
+    },
+
+    /// 匿名结构体
+    Struct(Vec<StructFieldDefStmt>),
+
+    /// 匿名 union
     Union {
         base_type: Box<CbmlType>,
         alowd_values: Vec<Literal>, // 1 | 2 | 3
-    }, // 联合类型
+    }, // 匿名联合类型
+
     Optional {
-        ty: Box<CbmlType>,
+        inner_type: Box<CbmlType>,
     }, // ?string /number ?bool ?[string] ?[number] ?[bool] ?{name: string}
-    Any,     // any
+
+    /// 匿名 enum
     Enum {
-        field_name: String,
-        field_type: Box<CbmlType>,
+        enum_name: String,
+        // field_type: Box<CbmlType>,
+        fields: Vec<EnumField>,
     },
 
     /// 用户自定义的且设置了名字的类型.
     Custom(String), // 自定义类型 struct name, union(string) name, type name,
+}
+
+impl CbmlType {
+    pub fn to_cbml_code(&self) -> String {
+        match self {
+            CbmlType::String => format!("string"),
+            CbmlType::Number => format!("number"),
+            CbmlType::Boolean => format!("bool"),
+            CbmlType::Any => format!("any"),
+            CbmlType::Array { inner_type } => format!("[{}]", inner_type.to_cbml_code()),
+            CbmlType::Struct(struct_field_def_stmts) => {
+                let mut str = String::new();
+                str.push_str("{");
+                for s in struct_field_def_stmts {
+                    str.push_str(&format!("{}: {}, ", s.field_name, s.ty.to_cbml_code()));
+                }
+                str.push_str("}");
+                return str;
+            }
+            CbmlType::Union {
+                base_type: _base_type,
+                alowd_values,
+            } => {
+                let mut str = String::new();
+                alowd_values.iter().map(|x| {
+                    str.push_str(&format!("{} | ", x.to_cbml_code()));
+                });
+
+                return str;
+            }
+            CbmlType::Optional { inner_type } => {
+                format!("?{}", inner_type.to_cbml_code())
+            }
+            CbmlType::Enum {
+                enum_name: field_name,
+                fields,
+            } => {
+                let mut str = String::new();
+                str.push_str(&format!("enum {} {{", field_name));
+                for field in fields {
+                    str.push_str(&format!(
+                        "{}: {}, ",
+                        field.field_name,
+                        field.ty.to_cbml_code()
+                    ));
+                }
+                str.push_str("}");
+                return str;
+            }
+            CbmlType::Custom(name) => name.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -243,33 +443,36 @@ pub enum TypeInference {
     InferenceUnkonw, // 推导了, 没推导出来.
 }
 
+/// 具名 struct
 #[derive(Debug, Clone)]
-pub struct StructTy {
-    pub name: String,
+pub struct StructDef {
+    pub struct_name: String,
 
     // fields: HashMap<String, CbmlType>, // 字段名不能重复, 所以用 HashMap.
-    pub fields: Vec<StructFieldDefinition>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
-}
-#[derive(Debug, Clone)]
-pub struct EnumTy {
-    pub name: String,
-
-    // fields: HashMap<String, CbmlType>, // 字段名不能重复, 所以用 HashMap.
-    pub fields: Vec<EnumFieldDefinition>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
+    pub fields: Vec<StructFieldDefStmt>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
 }
 
+/// 具名 enum
 #[derive(Debug, Clone)]
-pub struct UnionTy {
-    pub name: String,
+pub struct EnumDef {
+    pub enum_name: String,
+
+    pub fields: Vec<EnumField>,
+}
+
+/// 具名 union
+#[derive(Debug, Clone)]
+pub struct UnionDef {
+    pub union_name: String,
     pub base_type: CbmlType,
-    pub alowd_values: Vec<Literal>, // 1 | 2 | 3
+    pub allowed_values: Vec<Literal>, // 1 | 2 | 3
 }
 
-impl UnionTy {
+impl UnionDef {
     fn duplicate_check(&self) -> Vec<Literal> {
         let mut re: Vec<&Literal> = Vec::new();
         let mut duplicated: Vec<Literal> = Vec::new();
-        for v in &self.alowd_values {
+        for v in &self.allowed_values {
             if re.contains(&v) {
                 duplicated.push(v.clone());
             } else {
