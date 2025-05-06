@@ -1,19 +1,24 @@
 mod lexer;
 mod parser;
 mod typecheck;
+mod source_map;
 
 fn main() {
     tests::test_parser();
-
-    // config file
-    //
-    // config_file = useStmt{0,1} b{0,}
-    // b = linecomment | blockComment | asignment
-    //
-
-    // typedef file
-    // typedef_file = FileFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
 }
+
+// 在编写时的 错误检查
+// language server
+
+fn cheack_file() {
+    fn cheack_typedef() {}
+}
+
+// 解析 cbml 文件到 编程语言自己的类型 T
+fn parse<T>() {}
+
+// language server
+// lib
 
 #[allow(dead_code)]
 fn timeit(count: usize, f: fn()) {
@@ -36,7 +41,7 @@ mod tests {
 
     // #[test]
     pub fn test_parser() {
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml");
 
@@ -52,7 +57,7 @@ mod tests {
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
     }
 
     #[test]
@@ -95,8 +100,11 @@ mod tests {
 
         let mut parser = CbmlParser::new(&tokens);
         let re = parser.parse();
+
+        drop(tokens);
+
         match re {
-            Ok(ast) => {
+            Ok(ref ast) => {
                 // ast.iter().for_each(|s| {
                 //     dp(format!("statement: {:?}", s));
                 // });
@@ -104,6 +112,7 @@ mod tests {
                 // dp("start typecheck: ");
 
                 let re = typecheck(ast);
+
                 if re.is_empty() {
                     dp("没有检查出类型错误.");
                 } else {

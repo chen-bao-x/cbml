@@ -1,3 +1,5 @@
+use crate::lexer::token::{Span, Token};
+
 struct File {
     val: Vec<AsignmentStmt>,
 }
@@ -6,6 +8,12 @@ struct File {
 // struct TypedefFile {
 //     val: Vec<>,
 // }
+
+pub struct Statement {
+    kink: Stmt,
+    location: Span,
+    tokens: Vec<Token>,
+}
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
@@ -42,7 +50,7 @@ pub struct AsignmentStmt {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldDefStmt {
     pub field_name: String,
-    pub ty: CbmlType,
+    pub _type: CbmlType,
     pub default: Option<Literal>,
     // pub document: String,
 }
@@ -52,7 +60,7 @@ pub struct StructFieldDefStmt {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumField {
     pub field_name: String,
-    pub ty: CbmlType,
+    pub _type: CbmlType,
 }
 
 /// 字面量
@@ -97,7 +105,7 @@ impl Literal {
             _ => false,
         }
     }
- 
+
     pub fn union_base_type(arr: &[Literal]) -> CbmlType {
         let re = Literal::union_base_type_2(arr);
         return match re {
@@ -171,7 +179,7 @@ impl Literal {
 
                         return StructFieldDefStmt {
                             field_name: x.field_name.clone(),
-                            ty,
+                            _type: ty,
                             default: None,
                         };
                     })
@@ -274,7 +282,7 @@ impl Literal {
                 let mut re = String::new();
                 re.push_str(_field_name);
                 re.push('(');
-                
+
                 re.push_str(&_literal.to_cbml_code());
 
                 re.push(')');
@@ -351,7 +359,7 @@ impl CbmlType {
                 let mut str = String::new();
                 str.push_str("{");
                 for s in struct_field_def_stmts {
-                    str.push_str(&format!("{}: {}, ", s.field_name, s.ty.to_cbml_code()));
+                    str.push_str(&format!("{}: {}, ", s.field_name, s._type.to_cbml_code()));
                 }
                 str.push_str("}");
                 return str;
@@ -380,7 +388,7 @@ impl CbmlType {
                     str.push_str(&format!(
                         "{}: {}, ",
                         field.field_name,
-                        field.ty.to_cbml_code()
+                        field._type.to_cbml_code()
                     ));
                 }
                 str.push_str("}");

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     dp,
-    lexer::token::{Location, Position, TokenKind as tk},
+    lexer::token::{Span, Position, TokenKind as tk},
 };
 use crate::{
     lexer::token::Token,
@@ -27,9 +27,9 @@ impl<'a> CbmlParser<'a> {
 
             eof: Token::new(
                 tk::EOF,
-                Location {
-                    start: Position { line: 0, column: 0 },
-                    end: Position { line: 0, column: 0 },
+                Span {
+                    start: Position::new(0, 0, 0),
+                    end: Position::new(0, 0, 0),
                 },
             ),
         }
@@ -535,7 +535,7 @@ impl<'a> CbmlParser<'a> {
 
             return Ok(StructFieldDefStmt {
                 field_name: name,
-                ty: field_type,
+                _type: field_type,
                 default: default_value,
             });
         } else {
@@ -798,7 +798,7 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::NewLine)?;
 
-            let field = EnumField { field_name, ty };
+            let field = EnumField { field_name, _type: ty };
 
             // dp(format!("{:?}", field));
 

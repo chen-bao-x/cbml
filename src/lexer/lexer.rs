@@ -1,4 +1,4 @@
-use super::token::{Location, Position, Token, TokenKind as tk};
+use super::token::{Span, Position, Token, TokenKind as tk};
 use crate::dp;
 use std::num::ParseFloatError;
 
@@ -735,13 +735,10 @@ impl Lexer {
 
 impl Lexer {
     fn get_current_position(&self) -> Position {
-        Position {
-            line: self.line,
-            column: self.column,
-        }
+        Position::new(self.line, self.column, self.position)
     }
 
-    fn get_pos(&mut self) -> Location {
+    fn get_pos(&mut self) -> Span {
         let start = match self.start_pos.clone() {
             Some(p) => p,
             None => todo!(),
@@ -754,7 +751,7 @@ impl Lexer {
         self.start_pos = None;
         self.end_pos = None;
 
-        return Location { start, end };
+        return Span { start, end };
     }
 
     fn mark_start_pos(&mut self) {

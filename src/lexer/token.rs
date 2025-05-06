@@ -2,7 +2,7 @@
 #[derive(Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
-    pub location: Location,
+    pub location: Span,
 }
 
 // impl std::fmt::Display for Positon {
@@ -12,7 +12,7 @@ pub struct Token {
 // }
 
 impl Token {
-    pub fn new(kind: TokenKind, location: Location) -> Self {
+    pub fn new(kind: TokenKind, location: Span) -> Self {
         Token { kind, location }
     }
 }
@@ -142,13 +142,33 @@ impl TokenKind {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Location {
+pub struct Span {
     pub start: Position,
     pub end: Position,
 }
+
+impl Span {
+    fn lookup<'a>(&self, code: &'a str) -> Option<&'a str> {
+        let start_pos = self.start.character_index;
+        let end_pos = self.end.character_index;
+        code.get(start_pos..end_pos)
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Position {
     pub line: usize,
     pub column: usize,
+    pub character_index: usize,
+}
+
+impl Position {
+    pub fn new(line: usize, column: usize, character_index: usize) -> Self {
+        Self {
+            line,
+            column,
+            character_index,
+        }
+    }
 }

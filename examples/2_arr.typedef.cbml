@@ -1,0 +1,20 @@
+
+// line comment 
+
+/// doc comment 
+
+/* block 
+comment
+*/
+
+arr : [number]
+arr_2 : [number]
+arr_3 :[bool]
+arr_4 : [string]
+arr_5 : [any]
+
+arr_any : [any]
+
+arr_7 : [number]
+
+arr_8 : [number]

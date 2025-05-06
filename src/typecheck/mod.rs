@@ -5,34 +5,146 @@ use crate::{
     lexer::tokenizer,
     parser::{
         Stmt,
-        ast::stmt::{CbmlType, EnumField, Literal, UnionDef},
+        ast::stmt::{
+            self, AsignmentStmt, CbmlType, EnumField, Literal, StructFieldDefStmt, UnionDef,
+        },
     },
 };
+
+// 为什么失败、在哪失败、甚至有时候还告诉你怎么修！
+// 🎯 核心原则：错误信息不仅是反馈，更是教学工具！
+
+// 错误信息 = 编译器和开发者之间的「对话」。
+// 一个好编译器不是说“你错了”，而是说：“嘿，我猜你可能是想这样？”
+
+// 6. 颜色！颜色！颜色！（重要的说三遍）🌈
+
+// 用 ANSI 颜色高亮：
+// 	•	红色：error
+// 	•	黄色：warning
+// 	•	青色：help
+// 	•	绿色：路径、类型提示
+
+// Rust CLI 本身就是超漂亮的终端艺术品，别忘了这一块！
+
+// 7. 提供自动修复建议 / LSP 支持（进阶）
+// 	•	支持 JSON 输出
+// 	•	提供“fix-it hints”（可以被 IDE 自动修复）
+// 	•	支持 LSP 插件（语法树 + diagnostic 提示）
+
+// 这就能让你的编译器配合编辑器时实现“悬停提示 + 快捷修复”！
+
 // *    名称重复
 // •	错误位置
 // •	期望类型 vs 实际类型
 // •	推测失败原因
-pub fn typecheck(ast: Vec<Stmt>) -> Vec<TypeCheckedResult> {
+/// 检查 cbml 文件
+pub fn typecheck(ast: &Vec<Stmt>) -> Vec<TypeCheckedResult> {
     let mut type_checker = TypeChecker::new();
 
     return type_checker.typecheck(ast);
 }
 
+/// 检查 cbml 文件
+pub fn typecheck_for_def(ast: &Vec<Stmt>) -> Vec<TypeCheckedResult> {
+    let mut type_checker = TypeChecker::new();
+
+    type_checker.state = State::InTypedef;
+    let re = type_checker.typecheck(&ast);
+    type_checker.state = State::InFile;
+
+    return re;
+}
+
+enum State {
+    /// .cbml
+    InFile,
+    /// .typedef.cbml
+    InTypedef,
+}
+
+// impl State {
+//     fn is_in_file(&self) -> bool {
+//         match self {
+//             State::InFile => true,
+//             State::InTypedef => false,
+//         }
+//     }
+
+//     fn is_in_typedef(&self) -> bool {
+//         match self {
+//             State::InFile => false,
+//             State::InTypedef => true,
+//         }
+//     }
+// }
+
 /// 类型检查
 struct TypeChecker {
     /// 自定义的类型, 例如: struct, enum, union, type alias, named array,
     custom_types: HashMap<String, CbmlType>,
+
+    /// 自定义的 file level field.
+    fields: HashMap<String, CbmlType>,
+
+    /// field assignment
+    asignments: HashMap<String, AsignmentStmt>,
+
     is_typedefed: bool,
+
+    state: State,
 }
 
+impl TypeChecker {
+    /// 如果 name 已经存在, 则会返回 true.
+    fn push_field_def(&mut self, name: String, ty: CbmlType) -> bool {
+        let re = self.fields.insert(name, ty);
+        return match re {
+            Some(_) => {
+                // name 已经存在
+                true
+            }
+            None => false,
+        };
+    }
+
+    /// 如果 name 已经存在, 则会返回 true.
+    fn push_field_asign(&mut self, asign: AsignmentStmt) -> bool {
+        let re = self.asignments.insert(asign.field_name.clone(), asign);
+
+        match re {
+            Some(_) => {
+                // name 已经存在
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// 如果 name 已经存在, 则会返回 true.
+    fn push_type_def(&mut self, type_name: String, ty: CbmlType) -> bool {
+        let re = self.custom_types.insert(type_name, ty);
+        match re {
+            Some(_) => {
+                // name 已经存在
+                true
+            }
+            None => false,
+        }
+    }
+}
 impl TypeChecker {
     fn new() -> Self {
         TypeChecker {
             custom_types: HashMap::new(),
             is_typedefed: false,
+            state: State::InFile,
+            fields: HashMap::new(),
+            asignments: HashMap::new(),
         }
     }
-    fn typecheck(&mut self, ast: Vec<Stmt>) -> Vec<TypeCheckedResult> {
+
+    fn typecheck(&mut self, ast: &Vec<Stmt>) -> Vec<TypeCheckedResult> {
         let mut re: Vec<TypeCheckedResult> = vec![];
         for s in ast {
             let asdf = self.check_one(s);
@@ -45,10 +157,19 @@ impl TypeChecker {
     }
 
     /// 检查类型的名称是否重复.
-    fn check_duplicated_name(&self, name: &str) -> TypeCheckedResult {
+    fn check_duplicated_type_name(&self, name: &str) -> TypeCheckedResult {
         let re = self.custom_types.get(name);
         return match re {
             Some(_a) => TypeCheckedResult::Error(format!("类型 `{}` 已经存在: at: ", name,)),
+            None => TypeCheckedResult::Ok,
+        };
+    }
+
+    /// 检查重复的 file level field.
+    fn check_duplicated_file_field_name(&self, name: &str) -> TypeCheckedResult {
+        let re = self.custom_types.get(name);
+        return match re {
+            Some(_a) => TypeCheckedResult::Error(format!("field `{}` 已经存在: at: ", name,)),
             None => TypeCheckedResult::Ok,
         };
     }
@@ -74,32 +195,61 @@ impl TypeChecker {
         // }
     }
 
-    fn check_one(&mut self, stmt: Stmt) -> TypeCheckedResult {
+    fn did_allow_in_state(&mut self, stmt: &Stmt) -> TypeCheckedResult {
+        // config_file = useStmt{0,1} b{0,}
+        // b = linecomment | blockComment | asignment
+        //
+
+        // typedef file
+        // typedef_file = FileFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
+
+        match self.state {
+            State::InFile => match stmt {
+                Stmt::Asignment(_)
+                | Stmt::Use(_)
+                | Stmt::LineComment(_)
+                | Stmt::BlockComment(_) => TypeCheckedResult::Ok,
+                _ => TypeCheckedResult::err_stmt_not_allow_in_current_scope(stmt),
+            },
+            State::InTypedef => match stmt {
+                Stmt::Asignment(_) | Stmt::Use(_) => {
+                    TypeCheckedResult::err_stmt_not_allow_in_current_scope(stmt)
+                }
+                _ => TypeCheckedResult::Ok,
+            },
+        }
+    }
+    fn check_one(&mut self, stmt: &Stmt) -> TypeCheckedResult {
+        let re = self.did_allow_in_state(&stmt);
+        if re.not_ok() {
+            return re;
+        };
+
         match stmt {
-            Stmt::FileFieldStmt(ref struct_field_def_stmt) => {
+            Stmt::FileFieldStmt(struct_field_def_stmt) => {
                 // struct_field_def_stmt.field_name;
                 // struct_field_def_stmt.default;
                 // struct_field_def_stmt.ty; // 如果使用了 Custom 类型, 这个类型是否存在.
 
                 // 名称是否重复
-                let re = self.check_duplicated_name(&struct_field_def_stmt.field_name);
+                let re = self.check_duplicated_file_field_name(&struct_field_def_stmt.field_name);
                 if !re.is_ok() {
                     return re;
                 }
 
                 // 如果使用了 Custom 类型, 这个类型是否存在.
-                if let CbmlType::Custom(name) = &struct_field_def_stmt.ty {
+                if let CbmlType::Custom(name) = &struct_field_def_stmt._type {
                     if !self.is_named_type(name) {
                         return TypeCheckedResult::err_cannot_find_type(name);
                     }
                 }
 
                 if let Some(default_value) = &struct_field_def_stmt.default {
-                    if !self.is_same_type(&struct_field_def_stmt.ty, default_value) {
+                    if !self.is_same_type(&struct_field_def_stmt._type, default_value) {
                         // 类型错误, 需要 {} found {}
 
                         return TypeCheckedResult::err_mismatched_types(
-                            &struct_field_def_stmt.ty.to_cbml_code(),
+                            &struct_field_def_stmt._type.to_cbml_code(),
                             &default_value.to_cbml_code(),
                         );
                     }
@@ -107,10 +257,13 @@ impl TypeChecker {
 
                 {
                     let k = struct_field_def_stmt.field_name.clone();
-                    let v = struct_field_def_stmt.ty.clone();
+                    let v = struct_field_def_stmt._type.clone();
 
-                    self.custom_types.insert(k, v);
+                    if self.push_field_def(k, v) {
+                        return TypeCheckedResult::err_field_alredy_exits(&struct_field_def_stmt);
+                    };
                 }
+
                 return TypeCheckedResult::Ok;
             }
             Stmt::TypeAliasStmt(_name, _cbml_type) => {
@@ -119,7 +272,7 @@ impl TypeChecker {
                 todo!();
             }
             Stmt::StructDefStmt(struct_def) => {
-                let re = self.check_duplicated_name(&struct_def.struct_name);
+                let re = self.check_duplicated_type_name(&struct_def.struct_name);
                 if !re.is_ok() {
                     return re;
                 }
@@ -139,7 +292,7 @@ impl TypeChecker {
 
                         // 如果使用了 Custom 类型, 这个类型是否存在.
                         {
-                            if let CbmlType::Custom(ref name) = field.ty {
+                            if let CbmlType::Custom(ref name) = field._type {
                                 let re = self.custom_types.get(name);
                                 match re {
                                     Some(_) => {}
@@ -158,14 +311,19 @@ impl TypeChecker {
 
                 {
                     let k = struct_def.struct_name.clone();
-                    let v = CbmlType::Struct(struct_def.fields);
+                    let v = CbmlType::Struct(struct_def.fields.clone());
 
-                    self.custom_types.insert(k, v);
+                    // self.custom_types.insert(k, v);
+                    if self.push_type_def(k, v) {
+                        return TypeCheckedResult::err_type_name_alredy_exits(
+                            &struct_def.struct_name,
+                        );
+                    };
                 }
 
                 return TypeCheckedResult::Ok;
             }
-            Stmt::EnumDef(ref enum_def) => {
+            Stmt::EnumDef(enum_def) => {
                 // enum_def.enum_name;
                 // enum_def.fields;
 
@@ -187,7 +345,7 @@ impl TypeChecker {
 
                         // 如果使用了 Custom 类型, 这个类型是否存在.
                         {
-                            if let CbmlType::Custom(ref name) = field.ty {
+                            if let CbmlType::Custom(ref name) = field._type {
                                 let re = self.custom_types.get(name);
                                 match re {
                                     Some(_) => {}
@@ -210,7 +368,12 @@ impl TypeChecker {
                         fields: enum_def.fields.clone(),
                     };
 
-                    self.custom_types.insert(k, v);
+                    // self.custom_types.insert(k, v);
+
+                    // self.custom_types.insert(k, v);
+                    if self.push_type_def(k, v) {
+                        return TypeCheckedResult::err_type_name_alredy_exits(&enum_def.enum_name);
+                    };
                 }
 
                 return TypeCheckedResult::Ok;
@@ -222,7 +385,7 @@ impl TypeChecker {
                 // 如果使用了 Custom 类型, 这个类型是否存在.
                 // alowd_values 是否有重复的.
 
-                let re = self.check_duplicated_name(&union_def.union_name);
+                let re = self.check_duplicated_type_name(&union_def.union_name);
                 if !re.is_ok() {
                     return re;
                 }
@@ -265,10 +428,16 @@ impl TypeChecker {
 
                     let v = CbmlType::Union {
                         base_type: union_def.base_type.clone().into(),
-                        alowd_values: union_def.allowed_values,
+                        alowd_values: union_def.allowed_values.clone(),
                     };
 
-                    self.custom_types.insert(k, v);
+                    // self.custom_types.insert(k, v);
+
+                    if self.push_type_def(k, v) {
+                        return TypeCheckedResult::err_type_name_alredy_exits(
+                            &union_def.union_name,
+                        );
+                    };
                 }
 
                 return TypeCheckedResult::Ok;
@@ -287,7 +456,7 @@ impl TypeChecker {
                 match re {
                     Ok(code) => {
                         // println!("{code}");
-                        self.read_typedefs(&code);
+                        self.read_typedef(&code);
                     }
                     Err(e) => {
                         eprintln!("error: {:?}", e);
@@ -305,7 +474,7 @@ impl TypeChecker {
                 // self.custom_types.contains_key(k)
 
                 // 检查 field_name 在 typedef 文件中是否存在.
-                match self.custom_types.get(&asign.field_name) {
+                match self.fields.get(&asign.field_name) {
                     Some(ty) => {
                         // 检查 value 是否符合 field_name 在 typedef 文件中定义的类型.
                         let ty = ty.clone();
@@ -319,6 +488,12 @@ impl TypeChecker {
                     None => {
                         return TypeCheckedResult::err_unknow_field(&asign.field_name);
                     }
+                };
+
+                // self.push_field_asign(asign.clone());
+
+                if self.push_field_asign(asign.clone()) {
+                    return TypeCheckedResult::err_filed_alredy_asignment(&asign);
                 };
 
                 return TypeCheckedResult::Ok;
@@ -342,7 +517,7 @@ impl TypeChecker {
         return re;
     }
 
-    fn read_typedefs(&mut self, code: &str) {
+    fn read_typedef(&mut self, code: &str) {
         use crate::parser::cbml_parser::CbmlParser;
 
         let tokens = tokenizer(&code)
@@ -358,12 +533,10 @@ impl TypeChecker {
         let re = parser.parse();
         match re {
             Ok(ast) => {
-                // ast.iter().for_each(|s| {
-                //     dp(format!("statement: {:?}", s));
-                // });
-                // dp("start typecheck: ");
+                self.state = State::InTypedef;
+                let re = self.typecheck(&ast);
+                self.state = State::InFile;
 
-                let re = self.typecheck(ast);
                 if re.is_empty() {
                     dp("没有检查出类型错误.");
                 } else {
@@ -398,7 +571,7 @@ impl TypeChecker {
                 Literal::Boolean(_) => true,
                 _ => false,
             },
-            CbmlType::Any => todo!(),
+            CbmlType::Any => true,
             CbmlType::Array { inner_type } => match literal {
                 Literal::Array(literals) => {
                     return literals.iter().all(|x| {
@@ -444,7 +617,7 @@ impl TypeChecker {
                             //     dbg!(&a.ty == &b.value.to_cbml_type());
                             // }
 
-                            a.field_name == b.field_name && self.is_same_type(&a.ty, &b.value)
+                            a.field_name == b.field_name && self.is_same_type(&a._type, &b.value)
                         });
 
                         return afsdf;
@@ -476,7 +649,7 @@ impl TypeChecker {
                     } => {
                         let re = fields.iter().any(|x| {
                             &x.field_name == enum_field_literal_name
-                                && self.is_same_type(&x.ty, lit)
+                                && self.is_same_type(&x._type, lit)
                         });
 
                         return re;
@@ -589,6 +762,13 @@ impl TypeCheckedResult {
         }
     }
 
+    fn not_ok(&self) -> bool {
+        match self {
+            TypeCheckedResult::Ok => false,
+            _ => true,
+        }
+    }
+
     fn err_cannot_find_type(type_name: &str) -> Self {
         TypeCheckedResult::Error(format!("connot find type `{}` ", type_name))
     }
@@ -611,33 +791,49 @@ impl TypeCheckedResult {
     fn err_use_can_only_def_onece() -> Self {
         TypeCheckedResult::Error(format!("use can only def onece"))
     }
+
+    fn err_stmt_not_allow_in_current_scope(stmt: &Stmt) -> Self {
+        TypeCheckedResult::Error(format!("stmt not allow in current scope: {:?}", stmt))
+    }
+
+    fn err_field_alredy_exits(asign: &StructFieldDefStmt) -> Self {
+        Self::Error(format!("field `{}` alredy exit", asign.field_name))
+    }
+
+    fn err_type_name_alredy_exits(type_name: &str) -> Self {
+        Self::Error(format!("type name `{}` alredy exit", type_name))
+    }
+
+    fn err_filed_alredy_asignment(asign: &AsignmentStmt) -> Self {
+        Self::Error(format!("field `{}` alredy asignment", asign.field_name))
+    }
 }
 
 /// 类型推导
-fn type_inference() {}
+// fn type_inference() {}
 
 // trait IsSameType {
 //     fn is_same_type(&self, other: &Self) -> bool;
 // }
 
-trait ToCbmltype {
-    fn to_cbmltype(&self) -> CbmlType;
-}
+// trait ToCbmltype {
+//     fn to_cbmltype(&self) -> CbmlType;
+// }
 
-impl ToCbmltype for CbmlType {
-    fn to_cbmltype(&self) -> CbmlType {
-        return self.clone();
-    }
-}
+// impl ToCbmltype for CbmlType {
+//     fn to_cbmltype(&self) -> CbmlType {
+//         return self.clone();
+//     }
+// }
 
-impl ToCbmltype for UnionDef {
-    fn to_cbmltype(&self) -> CbmlType {
-        CbmlType::Union {
-            base_type: self.base_type.clone().into(),
-            alowd_values: self.allowed_values.clone(),
-        }
-    }
-}
+// impl ToCbmltype for UnionDef {
+//     fn to_cbmltype(&self) -> CbmlType {
+//         CbmlType::Union {
+//             base_type: self.base_type.clone().into(),
+//             alowd_values: self.allowed_values.clone(),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -688,12 +884,12 @@ mod tests {
         let struct_a = CbmlType::Struct(vec![
             StructFieldDefStmt {
                 field_name: "field1".to_string(),
-                ty: CbmlType::String,
+                _type: CbmlType::String,
                 default: None,
             },
             StructFieldDefStmt {
                 field_name: "field2".to_string(),
-                ty: CbmlType::Number,
+                _type: CbmlType::Number,
                 default: None,
             },
         ]);
@@ -755,11 +951,11 @@ mod tests {
             fields: vec![
                 EnumField {
                     field_name: "field1".to_string(),
-                    ty: CbmlType::String,
+                    _type: CbmlType::String,
                 },
                 EnumField {
                     field_name: "field2".to_string(),
-                    ty: CbmlType::Number,
+                    _type: CbmlType::Number,
                 },
             ],
         };
