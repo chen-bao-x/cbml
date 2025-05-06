@@ -425,7 +425,7 @@ impl TypeChecker {
                                     None => {
                                         return Some(ParserError::err_cannot_find_type(
                                             self.file_path.clone(),
-                                            todo!(),
+                                            field.field_name_span.clone(),
                                             name,
                                         ))
                                         .into();
@@ -449,7 +449,7 @@ impl TypeChecker {
                     if self.push_type_def(k, v) {
                         return ParserError::err_type_name_alredy_exits(
                             self.file_path.clone(),
-                            todo!(),
+                            enum_def.name_span.clone(),
                             &enum_def.enum_name,
                         )
                         .into();

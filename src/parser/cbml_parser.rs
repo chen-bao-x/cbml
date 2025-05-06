@@ -1,7 +1,7 @@
 use super::{
     ParserError,
     ast::stmt::{
-        AsignmentStmt, CbmlType, LiteralKind, LiteralWithSpan, StmtKind, StructDef,
+        AsignmentStmt, CbmlType, DocumentStmt, LiteralKind, Literal, StmtKind, StructDef,
         StructFieldDefStmt, UnionDef, UseStmt,
     },
 };
@@ -52,7 +52,9 @@ impl<'a> CbmlParser<'a> {
 
             let re = self.parse_statement();
             match re {
-                Ok(s) => statements.push(s),
+                Ok(s) => {
+                    statements.push(s);
+                }
                 Err(e) => {
                     // errors.push(e);
                     // self.current_position += 1; // 移动到下一个 Token
@@ -122,8 +124,27 @@ impl<'a> CbmlParser<'a> {
                 Ok(StmtKind::BlockComment(s))
             }
             tk::DocComment(s) => {
-                self.consume(tk::DocComment("".into()))?;
-                Ok(StmtKind::DocComment(s))
+                // self.consume(tk::DocComment("".into()))?;
+
+                todo!();
+                // let doc = self.parse_document();
+                // let asdf = self.parse_asignment()?;
+                // match asdf {
+                //     StmtKind::Use(use_stmt) => todo!(),
+                //     StmtKind::Asignment(asignment_stmt) => todo!(),
+                //     StmtKind::FileFieldStmt(mut struct_field_def_stmt) => {
+                //         struct_field_def_stmt.doc = doc;
+                //     }
+                //     StmtKind::TypeAliasStmt(type_alias_stmt) => todo!(),
+                //     StmtKind::StructDefStmt(struct_def) => todo!(),
+                //     StmtKind::EnumDef(enum_def) => todo!(),
+                //     StmtKind::UnionDef(union_def) => todo!(),
+                //     StmtKind::LineComment(_) => todo!(),
+                //     StmtKind::BlockComment(_) => todo!(),
+                //     StmtKind::DocComment(_) => todo!(),
+                // }
+
+                return Ok(StmtKind::DocComment(s));
             }
             _ => {
                 // dp(format!("parse_statement error: unkonow token {:?}", tok));
@@ -330,8 +351,8 @@ impl<'a> CbmlParser<'a> {
 
         return Ok(elements);
     }
- 
-    fn parse_literal(&mut self) -> Result<LiteralWithSpan, ParserError> {
+
+    fn parse_literal(&mut self) -> Result<Literal, ParserError> {
         // 解析字面量
         let tok = self.peek().clone();
         match tok.kind {
@@ -339,7 +360,7 @@ impl<'a> CbmlParser<'a> {
                 let a = LiteralKind::String(s);
                 self.consume(tk::String("".into()))?;
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: a,
                     span: tok.span,
                 });
@@ -348,26 +369,24 @@ impl<'a> CbmlParser<'a> {
                 self.consume(tk::Number(n.clone()))?;
 
                 let a = LiteralKind::Number(n.clone());
-             
-                return Ok(LiteralWithSpan {
+
+                return Ok(Literal {
                     kind: a,
                     span: tok.span,
                 });
             }
             tk::True => {
                 self.consume(tk::True)?;
-          
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::Boolean(true),
                     span: tok.span,
                 });
             }
             tk::False => {
                 self.consume(tk::False)?;
-                
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::Boolean(false),
                     span: tok.span,
                 });
@@ -375,7 +394,7 @@ impl<'a> CbmlParser<'a> {
             tk::TkNone => {
                 self.consume(tk::TkNone)?;
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::LiteralNone,
                     span: tok.span,
                 });
@@ -384,7 +403,7 @@ impl<'a> CbmlParser<'a> {
             tk::Todo => {
                 self.consume(tk::Todo)?;
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::Todo,
                     span: tok.span,
                 });
@@ -392,7 +411,7 @@ impl<'a> CbmlParser<'a> {
             tk::Default => {
                 self.consume(tk::Default)?;
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::Default,
                     span: tok.span,
                 });
@@ -403,7 +422,7 @@ impl<'a> CbmlParser<'a> {
                 // 数组字面量
 
                 let arr = self.parse_array_literal()?;
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::Array(arr),
                     span: tok.span,
                 });
@@ -449,14 +468,12 @@ impl<'a> CbmlParser<'a> {
 
                                 let value = self.parse_literal()?;
                                 let arr = self.parse_array_literal()?;
-                        
 
                                 fields.push(AsignmentStmt {
                                     field_name: name.clone(),
                                     value,
                                     field_name_span: name_tok.span,
                                 });
-                             
                             }
                         }
                         _ => {
@@ -470,7 +487,7 @@ impl<'a> CbmlParser<'a> {
 
                 let rbrace = self.consume(tk::RBrace)?;
 
-                return Ok(LiteralWithSpan {
+                return Ok(Literal {
                     kind: LiteralKind::Struct(fields),
                     span: Span {
                         start: lbrace.span.start.clone(),
@@ -487,7 +504,7 @@ impl<'a> CbmlParser<'a> {
 
                         let enum_literal = self.parse_enum_literal()?;
 
-                        return Ok(LiteralWithSpan {
+                        return Ok(Literal {
                             kind: enum_literal,
                             span: self.peek().span.clone(),
                         });
@@ -540,7 +557,7 @@ impl<'a> CbmlParser<'a> {
                 "parse_asignment error: unkonow token {:?}",
                 self.peek().clone()
             ));
-             
+
             return Err(ParserError::new(
                 self.file_path.clone(),
                 format!("parse_asignment error: unkonow token {:?}", self.peek()),
@@ -571,6 +588,8 @@ impl<'a> CbmlParser<'a> {
         // struct_field_def = identifier Colon type_sign default_value{0,1}
         // default_value = default literal
 
+        let doc = self.parse_document();
+
         // 解析字段定义
         let name_tok = self.consume(tk::Identifier("".into()))?.clone();
         if let tk::Identifier(name) = name_tok.kind.clone() {
@@ -588,6 +607,7 @@ impl<'a> CbmlParser<'a> {
                 _type: field_type,
                 default: default_value,
                 field_name_span: name_tok.span,
+                doc,
             });
         } else {
             dp(format!(
@@ -603,9 +623,30 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
+    fn parse_document(&mut self) -> Option<DocumentStmt> {
+        let re = self.consume(tk::DocComment("".into()));
+        match re {
+            Ok(doc_tok) => {
+                if let tk::DocComment(s) = doc_tok.kind.clone() {
+                    return Some(DocumentStmt {
+                        document: s,
+                        span: doc_tok.span.clone(),
+                    });
+                }
+            }
+            Err(_) => {}
+        }
+
+        // todo!("逻辑上不可能出现的错误.");
+
+        return None;
+    }
+
     /// 解析使用 struct name { } 这种方式定义的结构体.
     fn parse_struct_def(&mut self) -> Result<StmtKind, ParserError> {
         // 解析结构体定义
+
+        let doc = self.parse_document();
 
         self.consume(tk::Struct)?;
 
@@ -641,6 +682,7 @@ impl<'a> CbmlParser<'a> {
                 }
 
                 let field = self.parse_struct_field_def()?;
+
                 fields.push(field);
                 count += 1;
             }
@@ -651,6 +693,7 @@ impl<'a> CbmlParser<'a> {
                 struct_name: name,
                 fields,
                 name_span: name_tok.span,
+                doc: doc,
             }));
         } else {
             dp(format!(
@@ -733,11 +776,13 @@ impl<'a> CbmlParser<'a> {
 
         // dp(format!("parse_enum_def(&mut self)"));
 
+        let doc = self.parse_document();
+
         self.consume(tk::Enum)?; // enum
 
-        let enum_name_tok = self.consume(tk::Identifier("".into()))?; // identifier
+        let enum_name_tok = self.consume(tk::Identifier("".into()))?.clone(); // identifier
 
-        if let tk::Identifier(enum_name) = enum_name_tok.kind.clone() {
+        if let tk::Identifier(enum_name) = enum_name_tok.kind {
             self.consume(tk::LBrace)?; // LBrace
 
             self.eat_zeor_or_multy(tk::NewLine)?; // newline{0,}
@@ -779,7 +824,12 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::RBrace)?;
 
-            let enum_type = EnumDef { enum_name, fields };
+            let enum_type = EnumDef {
+                enum_name,
+                fields,
+                doc,
+                name_span: enum_name_tok.span,
+            };
             return Ok(StmtKind::EnumDef(enum_type));
         } else {
             panic!("这是逻辑上不可能出现的错误.")
@@ -793,6 +843,8 @@ impl<'a> CbmlParser<'a> {
     fn parse_union_def(&mut self) -> Result<StmtKind, ParserError> {
         // union LParent typesign RParent identifier Assignment union_field{1,}
         // union_field = pipe{1} literal
+
+        let doc = self.parse_document();
 
         // 解析联合体定义
         self.consume(tk::Union)?; // union
@@ -844,6 +896,7 @@ impl<'a> CbmlParser<'a> {
             union_name,
             base_type,
             allowed_values: alowd_values,
+            doc,
         }));
     }
 

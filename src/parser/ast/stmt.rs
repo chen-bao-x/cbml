@@ -59,6 +59,7 @@ pub struct UseStmt {
 pub struct TypeAliasStmt {
     pub name: String,
     pub ty: CbmlType,
+    pub doc: Option<DocumentStmt>,
 
     pub name_span: Span,
 }
@@ -69,21 +70,28 @@ pub struct TypeAliasStmt {
 pub struct AsignmentStmt {
     pub field_name: String,
     // pub value: LiteralKind,
-    pub value: LiteralWithSpan,
+    pub value: Literal,
     pub field_name_span: Span,
 }
 
 /// 属性类型申明
 /// name: string
 /// name: string default "hello"
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldDefStmt {
     pub field_name: String,
     pub _type: CbmlType,
     pub default: Option<LiteralKind>,
-    // pub document: String,
+
+    pub doc: Option<DocumentStmt>,
+
     pub field_name_span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DocumentStmt {
+    pub document: String,
+    pub span: Span,
 }
 
 /// 枚举属性申明
@@ -92,11 +100,12 @@ pub struct StructFieldDefStmt {
 pub struct EnumField {
     pub field_name: String,
     pub _type: CbmlType,
+
     pub field_name_span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiteralWithSpan {
+pub struct Literal {
     pub kind: LiteralKind,
     pub span: Span,
 }
@@ -152,7 +161,7 @@ impl LiteralKind {
         let re = LiteralKind::union_base_type_2(arr);
         return match re {
             TypeInference::Inferenced(cbml_type) => cbml_type,
-            TypeInference::UnInference => CbmlType::Any,
+            // TypeInference::UnInference => CbmlType::Any,
             TypeInference::InferenceUnkonw => CbmlType::Any,
         };
     }
@@ -215,7 +224,7 @@ impl LiteralKind {
                         let re = LiteralKind::from_vec_literal(&[x.value.clone().kind]);
                         let ty: CbmlType = match re {
                             TypeInference::Inferenced(cbml_type) => cbml_type,
-                            TypeInference::UnInference => CbmlType::Any,
+                            // TypeInference::UnInference => CbmlType::Any,
                             TypeInference::InferenceUnkonw => CbmlType::Any,
                         };
 
@@ -224,6 +233,7 @@ impl LiteralKind {
                             _type: ty,
                             default: None,
                             field_name_span: x.field_name_span.clone(),
+                            doc: None,
                         };
                     })
                     .collect();
@@ -416,8 +426,15 @@ impl CbmlType {
                 alowd_values,
             } => {
                 let mut str = String::new();
+                let mut counter = 0;
+
                 alowd_values.iter().for_each(|x| {
-                    str.push_str(&format!("{} | ", x.to_cbml_code()));
+                    counter += 1;
+                    if counter < alowd_values.len() {
+                        str.push_str(&format!("{} | ", x.to_cbml_code()));
+                    } else {
+                        str.push_str(&format!("{} ", x.to_cbml_code()));
+                    }
                 });
 
                 return str;
@@ -449,8 +466,7 @@ impl CbmlType {
 #[derive(Debug, Clone)]
 pub enum TypeInference {
     Inferenced(CbmlType), // 推导出来的类型.
-    UnInference,          // 还没推导
-
+    // UnInference,          // 还没推导
     InferenceUnkonw, // 推导了, 没推导出来.
 }
 
@@ -463,6 +479,8 @@ pub struct StructDef {
     pub fields: Vec<StructFieldDefStmt>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
 
     pub name_span: Span,
+
+    pub doc: Option<DocumentStmt>,
 }
 
 /// 具名 enum
@@ -471,6 +489,10 @@ pub struct EnumDef {
     pub enum_name: String,
 
     pub fields: Vec<EnumField>,
+
+    pub doc: Option<DocumentStmt>,
+
+    pub name_span: Span,
 }
 
 /// 具名 union
@@ -479,6 +501,7 @@ pub struct UnionDef {
     pub union_name: String,
     pub base_type: CbmlType,
     pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
+    pub doc: Option<DocumentStmt>,
 }
 
 impl UnionDef {
@@ -496,9 +519,3 @@ impl UnionDef {
         return duplicated;
     }
 }
-
-// #[derive(Debug, Clone)]
-// struct Value {
-//     value: Literal,
-//     ty: CbmlType,
-// }
