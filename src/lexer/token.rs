@@ -2,26 +2,17 @@
 #[derive(Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
-    pub location: Span,
+    pub span: Span,
 }
-
-// impl std::fmt::Display for Positon {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}:{}", self.line, self.column)
-//     }
-// }
 
 impl Token {
     pub fn new(kind: TokenKind, location: Span) -> Self {
-        Token { kind, location }
+        Token {
+            kind,
+            span: location,
+        }
     }
 }
-
-// impl std::fmt::Display for Token {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{:?}{}{}", self.kind, self.stard, self.end)
-//     }
-// }
 
 impl std::cmp::PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
@@ -141,22 +132,37 @@ impl TokenKind {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
 }
 
 impl Span {
-    fn lookup<'a>(&self, code: &'a str) -> Option<&'a str> {
+    pub fn lookup<'a>(&self, code: &'a str) -> Option<&'a str> {
         let start_pos = self.start.character_index;
         let end_pos = self.end.character_index;
         code.get(start_pos..end_pos)
     }
+
+    pub fn empty() -> Self {
+        Self {
+            start: Position {
+                line: 0,
+                column: 0,
+                character_index: 0,
+            },
+            end: Position {
+                line: 0,
+                column: 0,
+                character_index: 0,
+            },
+        }
+    }
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Position {
     pub line: usize,
     pub column: usize,

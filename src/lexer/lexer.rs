@@ -1,5 +1,5 @@
-use super::token::{Span, Position, Token, TokenKind as tk};
-use crate::dp;
+use super::token::{Position, Span, Token};
+use crate::parser::ParserError;
 use std::num::ParseFloatError;
 
 #[derive(Debug, Clone, Copy)]
@@ -17,6 +17,7 @@ enum State {
 
 #[derive(Debug)]
 pub struct Lexer {
+    file_path: String,
     input: Vec<char>,
     state: State,
     current: String,
@@ -30,8 +31,9 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(code: &str) -> Self {
+    pub fn new(file_path: &str, code: &str) -> Self {
         Lexer {
+            file_path: file_path.into(),
             current: String::new(),
             input: code.chars().collect(),
             position: 0,
@@ -87,7 +89,10 @@ impl Lexer {
     //     self.input.get(self.position + n).copied()
     // }
 
-    pub fn tokenize(&mut self) -> Result<Vec<Token>, String> {
+    // pub fn tokenize(&mut self) -> Result<Vec<Token>, String> {
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, ParserError> {
+        use crate::lexer::token::TokenKind as tk;
+
         let mut tokens = Vec::new();
 
         while let Some(ch) = self.peek() {
@@ -239,7 +244,14 @@ impl Lexer {
                             // tokens.push(Token::new(tk::Invalid(x), start, end));
 
                             let tok = Token::new(tk::Invalid(x), loc);
-                            return Err(format!("未识别的字符 {:?}", tok));
+
+                            return Err(ParserError {
+                                file_path: self.file_path.clone(),
+                                msg: format!("未识别的字符 {:?}", tok),
+                                code_location: tok.span,
+                                note: None,
+                                help: None,
+                            });
                         }
                     }
                 }
@@ -290,8 +302,16 @@ impl Lexer {
                                 }
                             };
 
-                            let binary_value = u64::from_str_radix(&self.current[2..], 2)
-                                .map_err(|e| e.to_string())?;
+                            let binary_value =
+                                u64::from_str_radix(&self.current[2..], 2).map_err(|e| {
+                                    ParserError {
+                                        file_path: self.file_path.clone(),
+                                        msg: e.to_string(),
+                                        code_location: self.get_pos(),
+                                        note: None,
+                                        help: None,
+                                    }
+                                })?;
 
                             let binary_value = if 是负数吗 {
                                 (binary_value as f64) * (-1.0)
@@ -334,8 +354,15 @@ impl Lexer {
                         };
 
                         let hex_value: f64 = {
-                            let v = u64::from_str_radix(&self.current[2..], 16)
-                                .map_err(|e| e.to_string())?;
+                            let v = u64::from_str_radix(&self.current[2..], 16).map_err(|e| {
+                                ParserError {
+                                    file_path: self.file_path.clone(),
+                                    msg: e.to_string(),
+                                    code_location: self.get_pos(),
+                                    note: None,
+                                    help: None,
+                                }
+                            })?;
 
                             if 是负数吗 {
                                 (v as f64) * (-1.0)
@@ -367,7 +394,13 @@ impl Lexer {
                             match self.current.find(|x| x == '.') {
                                 Some(_) => {
                                     // 已经有小数点了, 不能重复出现小数点.
-                                    return Err(format!("无效的数字格式 {:?}", self.current));
+                                    return Err(ParserError {
+                                        file_path: self.file_path.clone(),
+                                        msg: format!("无效的数字格式 {:?}", self.current),
+                                        code_location: self.get_pos(),
+                                        note: None,
+                                        help: None,
+                                    });
                                 }
                                 None => {
                                     // 处理小数点
@@ -385,10 +418,16 @@ impl Lexer {
                         }
                         _ => {
                             // 处理数字结束
-                            let num: f64 = self
-                                .current
-                                .parse()
-                                .map_err(|e: ParseFloatError| e.to_string())?;
+                            let num: f64 =
+                                self.current
+                                    .parse()
+                                    .map_err(|e: ParseFloatError| ParserError {
+                                        file_path: self.file_path.clone(),
+                                        msg: e.to_string(),
+                                        code_location: self.get_pos(),
+                                        note: None,
+                                        help: None,
+                                    })?;
 
                             // let tok = Token::new(tk::Number(num), self.line, self.column);
                             // tokens.push(tok);
@@ -450,16 +489,29 @@ impl Lexer {
                                             if next_ch == '{' {
                                                 self.advance();
                                             } else {
-                                                return Err(format!(
-                                                    "需要一个 {{ , 而不是 {:?}",
-                                                    next_ch
-                                                ));
+                                                return Err(ParserError {
+                                                    file_path: self.file_path.clone(),
+                                                    msg: format!(
+                                                        "需要一个 {{ , 而不是 {:?}",
+                                                        next_ch
+                                                    ),
+                                                    code_location: self.get_pos(),
+                                                    note: None,
+                                                    help: None,
+                                                });
                                             }
                                         } else {
-                                            return Err(format!(
-                                                "需要一个 {{ , 而不是 {:?}",
-                                                next_ch
-                                            ));
+                                            // return Err(format!(
+                                            //     "需要一个 {{ , 而不是 {:?}",
+                                            //     next_ch
+                                            // ));
+                                            return Err(ParserError {
+                                                file_path: self.file_path.clone(),
+                                                msg: format!("需要一个 {{ , 而不是 {:?}", next_ch),
+                                                code_location: self.get_pos(),
+                                                note: None,
+                                                help: None,
+                                            });
                                         }
                                         // for _ in 0..4 {
                                         for _ in 0..10 {
@@ -474,10 +526,16 @@ impl Lexer {
                                                     self.advance();
                                                 }
                                             } else {
-                                                return Err(format!(
-                                                    "需要一个 }} , 而不是 {:?}",
-                                                    next_ch
-                                                ));
+                                                return Err(ParserError {
+                                                    file_path: self.file_path.clone(),
+                                                    msg: format!(
+                                                        "需要一个 {{ , 而不是 {:?}",
+                                                        next_ch
+                                                    ),
+                                                    code_location: self.get_pos(),
+                                                    note: None,
+                                                    help: None,
+                                                });
                                             }
                                         }
 
@@ -485,19 +543,36 @@ impl Lexer {
                                             let sadf = match std::char::from_u32(unicode) {
                                                 Some(ch) => ch,
                                                 None => {
-                                                    return Err(format!(
-                                                        "无效的 unicode 转义序列 {:?}",
-                                                        unicode
-                                                    ));
+                                                    // return Err(format!(
+                                                    //     "无效的 unicode 转义序列 {:?}",
+                                                    //     unicode
+                                                    // ));
+
+                                                    return Err(ParserError {
+                                                        file_path: self.file_path.clone(),
+                                                        msg: format!(
+                                                            "无效的 unicode 转义序列 {:?}",
+                                                            unicode
+                                                        ),
+                                                        code_location: self.get_pos(),
+                                                        note: None,
+                                                        help: None,
+                                                    });
                                                 }
                                             };
 
                                             self.push(sadf);
                                         } else {
-                                            return Err(format!(
-                                                "无效的 unicode 转义序列 {:?}",
-                                                unicode
-                                            ));
+                                            return Err(ParserError {
+                                                file_path: self.file_path.clone(),
+                                                msg: format!(
+                                                    "无效的 unicode 转义序列 {:?}",
+                                                    unicode
+                                                ),
+                                                code_location: self.get_pos(),
+                                                note: None,
+                                                help: None,
+                                            });
                                         }
                                     }
                                     '\\' => {
@@ -609,7 +684,14 @@ impl Lexer {
                                     self.current.clear();
                                 }
                             } else {
-                                return Err(format!("语法错误: 需要一个 /",));
+                                return Err(ParserError {
+                                    file_path: self.file_path.clone(),
+                                    msg: format!("语法错误: 需要一个 /"),
+                                    code_location: self.get_pos(),
+                                    note: None,
+                                    help: None,
+                                });
+                                // return Err(format!("语法错误: 需要一个 /",));
                             }
                         }
                         x => {
@@ -623,7 +705,7 @@ impl Lexer {
         {
             // 处理最后的状态
             if !self.current.is_empty() {
-                match self.state {
+                match &self.state {
                     State::InIdentifier => {
                         self.mark_start_pos();
                         let loc = self.get_pos();
@@ -640,11 +722,15 @@ impl Lexer {
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(
-                            tk::Number(
-                                self.current
-                                    .parse()
-                                    .map_err(|e: ParseFloatError| e.to_string())?,
-                            ),
+                            tk::Number(self.current.parse().map_err(|e: ParseFloatError| {
+                                ParserError {
+                                    file_path: self.file_path.clone(),
+                                    msg: e.to_string(),
+                                    code_location: self.get_pos(),
+                                    note: None,
+                                    help: None,
+                                }
+                            })?),
                             loc,
                         ));
 
@@ -662,8 +748,15 @@ impl Lexer {
                         };
 
                         let hex_value: f64 = {
-                            let v = u64::from_str_radix(&self.current[2..], 16)
-                                .map_err(|e| e.to_string())?;
+                            let v = u64::from_str_radix(&self.current[2..], 16).map_err(|e| {
+                                ParserError {
+                                    note: None,
+                                    help: None,
+                                    file_path: self.file_path.clone(),
+                                    msg: e.to_string(),
+                                    code_location: self.get_pos(),
+                                }
+                            })?;
 
                             if 是负数吗 {
                                 (v as f64) * (-1.0)
@@ -690,8 +783,16 @@ impl Lexer {
                             }
                         };
 
-                        let binary_value = u64::from_str_radix(&self.current[2..], 2)
-                            .map_err(|e| e.to_string())?;
+                        let binary_value =
+                            u64::from_str_radix(&self.current[2..], 2).map_err(|e| {
+                                ParserError {
+                                    note: None,
+                                    help: None,
+                                    file_path: self.file_path.clone(),
+                                    msg: e.to_string(),
+                                    code_location: self.get_pos(),
+                                }
+                            })?;
 
                         let binary_value = if 是负数吗 {
                             (binary_value as f64) * (-1.0)
@@ -721,8 +822,8 @@ impl Lexer {
                     // State::InDocComment => todo!(),
                     // State::InBlockComment => todo!(),
                     _ => {
-                        dp(format!("{:?}", self.state));
-                        dp(format!("{:?}", self.current));
+                        // dp(format!("{:?}", self.state.clone()));
+                        // dp(format!("{:?}", &self.current));
                         todo!();
                     }
                 }
@@ -767,6 +868,8 @@ impl Lexer {
 #[cfg(test)]
 mod test {
 
+    use crate::dp;
+
     use super::*;
 
     #[test]
@@ -776,7 +879,7 @@ mod test {
     }
 
     fn sadfdasf(code: &str) {
-        let a = Lexer::new(code).tokenize();
+        let a = Lexer::new("file_path", code).tokenize();
         match a {
             Ok(tokens) => {
                 for token in tokens {
@@ -784,7 +887,7 @@ mod test {
                 }
             }
             Err(e) => {
-                dp(format!("Error: {}", e));
+                dp(format!("Error: {:?}", e));
             }
         }
     }

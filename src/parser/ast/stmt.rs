@@ -9,22 +9,17 @@ struct File {
 //     val: Vec<>,
 // }
 
-pub struct Statement {
-    kink: Stmt,
-    location: Span,
-    tokens: Vec<Token>,
-}
-
 #[derive(Debug, Clone)]
-pub enum Stmt {
-    Use(String), // use "path/to/file"
+pub enum StmtKind {
+    Use(UseStmt), // use "path/to/file"
 
     /// name = "hello"  identifier asignment literal
     Asignment(AsignmentStmt),
 
     /// 在文件中定义一个属性.
     FileFieldStmt(StructFieldDefStmt), // name : type; 文件的 field,
-    TypeAliasStmt(String, CbmlType), // type name = type
+
+    TypeAliasStmt(TypeAliasStmt), // type name = type
 
     StructDefStmt(StructDef),
     EnumDef(EnumDef), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
@@ -35,12 +30,47 @@ pub enum Stmt {
     DocComment(String),
 }
 
+impl StmtKind {
+    pub fn get_span(&self) -> Span {
+        match self.clone() {
+            StmtKind::Use(use_stmt) => use_stmt.keyword_span,
+            StmtKind::Asignment(asignment_stmt) => asignment_stmt.field_name_span,
+            StmtKind::FileFieldStmt(struct_field_def_stmt) => todo!(),
+            StmtKind::TypeAliasStmt(_) => todo!(),
+            StmtKind::StructDefStmt(struct_def) => todo!(),
+            StmtKind::EnumDef(enum_def) => todo!(),
+            StmtKind::UnionDef(union_def) => todo!(),
+            StmtKind::LineComment(_) => todo!(),
+            StmtKind::BlockComment(_) => todo!(),
+            StmtKind::DocComment(_) => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UseStmt {
+    pub url: String,
+    pub keyword_span: Span,
+    pub url_span: Span,
+}
+
+#[derive(Debug, Clone)]
+
+pub struct TypeAliasStmt {
+    pub name: String,
+    pub ty: CbmlType,
+
+    pub name_span: Span,
+}
+
 /// 赋值语句,
 /// name = "hello"
 #[derive(Debug, Clone, PartialEq)]
 pub struct AsignmentStmt {
     pub field_name: String,
-    pub value: Literal,
+    // pub value: LiteralKind,
+    pub value: LiteralWithSpan,
+    pub field_name_span: Span,
 }
 
 /// 属性类型申明
@@ -51,8 +81,9 @@ pub struct AsignmentStmt {
 pub struct StructFieldDefStmt {
     pub field_name: String,
     pub _type: CbmlType,
-    pub default: Option<Literal>,
+    pub default: Option<LiteralKind>,
     // pub document: String,
+    pub field_name_span: Span,
 }
 
 /// 枚举属性申明
@@ -61,15 +92,26 @@ pub struct StructFieldDefStmt {
 pub struct EnumField {
     pub field_name: String,
     pub _type: CbmlType,
+    pub field_name_span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiteralWithSpan {
+    pub kind: LiteralKind,
+    pub span: Span,
 }
 
 /// 字面量
 #[derive(Debug, Clone, PartialEq)]
-pub enum Literal {
+pub enum LiteralKind {
     String(String),
+    // String {
+    //     val: String,
+    //     span: Span,
+    // },
     Number(f64),
     Boolean(bool),
-    Array(Vec<Literal>),        // [1,2,2]
+    Array(Vec<LiteralKind>),    // [1,2,2]
     Struct(Vec<AsignmentStmt>), // 结构体字面量暂时先不做.
 
     //  union 字面量? 娜 union(string) 的字面量是 string
@@ -80,7 +122,7 @@ pub enum Literal {
     /// enum field literal
     EnumFieldLiteral {
         field_name: String,
-        literal: Box<Literal>,
+        literal: Box<LiteralKind>,
     },
     LiteralNone, // none
     Todo,
@@ -88,12 +130,12 @@ pub enum Literal {
 }
 
 /// 为 匿名 union 推导类型.
-impl Literal {
-    fn is_same_kind(&self, other: &Literal) -> bool {
-        use Literal::*;
+impl LiteralKind {
+    fn is_same_kind(&self, other: &LiteralKind) -> bool {
+        use LiteralKind::*;
 
         match (self, other) {
-            (String(_), String(_)) => true,
+            (String { .. }, String { .. }) => true,
             (Number(_), Number(_)) => true,
             (Boolean(_), Boolean(_)) => true,
             (Array(_), Array(_)) => true,
@@ -106,8 +148,8 @@ impl Literal {
         }
     }
 
-    pub fn union_base_type(arr: &[Literal]) -> CbmlType {
-        let re = Literal::union_base_type_2(arr);
+    pub fn union_base_type(arr: &[LiteralKind]) -> CbmlType {
+        let re = LiteralKind::union_base_type_2(arr);
         return match re {
             TypeInference::Inferenced(cbml_type) => cbml_type,
             TypeInference::UnInference => CbmlType::Any,
@@ -115,24 +157,24 @@ impl Literal {
         };
     }
 
-    fn union_base_type_2(arr: &[Literal]) -> TypeInference {
+    fn union_base_type_2(arr: &[LiteralKind]) -> TypeInference {
         match arr.len() {
             0 => {
                 return TypeInference::InferenceUnkonw;
             }
             1 => {
-                return Literal::from_vec_literal(arr);
+                return LiteralKind::from_vec_literal(arr);
             }
             _ => {
                 if Self::all_same_kind(arr) {
-                    return Literal::from_vec_literal(arr);
+                    return LiteralKind::from_vec_literal(arr);
                 } else {
                     return TypeInference::Inferenced(CbmlType::Any);
                 }
             }
         }
     }
-    fn all_same_kind(arr: &[Literal]) -> bool {
+    fn all_same_kind(arr: &[LiteralKind]) -> bool {
         match arr.len() {
             0 => {
                 panic!();
@@ -152,25 +194,25 @@ impl Literal {
         }
     }
 
-    pub fn from_vec_literal(arr: &[Literal]) -> TypeInference {
-        let base: &Literal = Self::skip_none(arr).unwrap_or(&Literal::LiteralNone);
+    pub fn from_vec_literal(arr: &[LiteralKind]) -> TypeInference {
+        let base: &LiteralKind = Self::skip_none(arr).unwrap_or(&LiteralKind::LiteralNone);
 
         return match base {
-            Literal::String(_) => TypeInference::Inferenced(CbmlType::String),
-            Literal::Number(_) => TypeInference::Inferenced(CbmlType::Number),
-            Literal::Boolean(_) => TypeInference::Inferenced(CbmlType::Boolean),
-            Literal::Array(literals) => {
-                let inter_type = Literal::union_base_type(&literals);
+            LiteralKind::String { .. } => TypeInference::Inferenced(CbmlType::String),
+            LiteralKind::Number(_) => TypeInference::Inferenced(CbmlType::Number),
+            LiteralKind::Boolean(_) => TypeInference::Inferenced(CbmlType::Boolean),
+            LiteralKind::Array(literals) => {
+                let inter_type = LiteralKind::union_base_type(&literals);
 
                 return TypeInference::Inferenced(CbmlType::Array {
                     inner_type: Box::new(inter_type),
                 });
             }
-            Literal::Struct(fields) => {
+            LiteralKind::Struct(fields) => {
                 let asdf: Vec<StructFieldDefStmt> = fields
                     .iter()
                     .map(|x| {
-                        let re = Literal::from_vec_literal(&[x.value.clone()]);
+                        let re = LiteralKind::from_vec_literal(&[x.value.clone().kind]);
                         let ty: CbmlType = match re {
                             TypeInference::Inferenced(cbml_type) => cbml_type,
                             TypeInference::UnInference => CbmlType::Any,
@@ -181,19 +223,20 @@ impl Literal {
                             field_name: x.field_name.clone(),
                             _type: ty,
                             default: None,
+                            field_name_span: x.field_name_span.clone(),
                         };
                     })
                     .collect();
 
                 return TypeInference::Inferenced(CbmlType::Struct(asdf));
             }
-            Literal::LiteralNone => TypeInference::InferenceUnkonw,
-            Literal::Todo => todo!(),
-            Literal::Default => todo!(),
+            LiteralKind::LiteralNone => TypeInference::InferenceUnkonw,
+            LiteralKind::Todo => todo!(),
+            LiteralKind::Default => todo!(),
             // Literal::Union(literals) => {
             //     return Literal::union_base_type_2(literals);
             // }
-            Literal::EnumFieldLiteral {
+            LiteralKind::EnumFieldLiteral {
                 field_name: _field_name,
                 literal: _lit,
             } => {
@@ -215,7 +258,7 @@ impl Literal {
         };
     }
 
-    fn skip_none(arr: &[Literal]) -> Option<&Literal> {
+    fn skip_none(arr: &[LiteralKind]) -> Option<&LiteralKind> {
         let len = arr.len();
         let mut count = 0;
 
@@ -224,7 +267,7 @@ impl Literal {
 
             if let Some(l) = arr.get(count) {
                 match l {
-                    Literal::LiteralNone | Literal::Todo | Literal::Default => {
+                    LiteralKind::LiteralNone | LiteralKind::Todo | LiteralKind::Default => {
                         continue;
                     }
                     _ => return Some(l),
@@ -238,25 +281,25 @@ impl Literal {
     }
 }
 
-impl Literal {
+impl LiteralKind {
     pub fn to_cbml_code(&self) -> String {
         match self {
-            Literal::String(s) => {
+            LiteralKind::String(s) => {
                 let mut re = String::new();
                 re.push_str(&format!("\"{}\"", s));
                 return re;
             }
-            Literal::Number(n) => {
+            LiteralKind::Number(n) => {
                 let mut re = String::new();
                 re.push_str(&format!("{}", n));
                 return re;
             }
-            Literal::Boolean(b) => {
+            LiteralKind::Boolean(b) => {
                 let mut re = String::new();
                 re.push_str(&format!("{}", b));
                 return re;
             }
-            Literal::Array(literals) => {
+            LiteralKind::Array(literals) => {
                 let mut re = String::new();
                 re.push_str("[");
                 for l in literals {
@@ -265,17 +308,21 @@ impl Literal {
                 re.push_str("]");
                 return re;
             }
-            Literal::Struct(asignment_stmts) => {
+            LiteralKind::Struct(asignment_stmts) => {
                 let mut re = String::new();
                 re.push_str("{");
                 for a in asignment_stmts {
-                    re.push_str(&format!("{}: {}, ", a.field_name, a.value.to_cbml_code()));
+                    re.push_str(&format!(
+                        "{}: {}, ",
+                        a.field_name,
+                        a.value.kind.to_cbml_code()
+                    ));
                 }
                 re.push_str("}");
                 return re;
             }
 
-            Literal::EnumFieldLiteral {
+            LiteralKind::EnumFieldLiteral {
                 field_name: _field_name,
                 literal: _literal,
             } => {
@@ -288,17 +335,17 @@ impl Literal {
                 re.push(')');
                 return re;
             }
-            Literal::LiteralNone => {
+            LiteralKind::LiteralNone => {
                 let mut re = String::new();
                 re.push_str("none");
                 return re;
             }
-            Literal::Todo => {
+            LiteralKind::Todo => {
                 let mut re = String::new();
                 re.push_str("todo");
                 return re;
             }
-            Literal::Default => {
+            LiteralKind::Default => {
                 let mut re = String::new();
                 re.push_str("default");
                 return re;
@@ -329,7 +376,7 @@ pub enum CbmlType {
     /// 匿名 union
     Union {
         base_type: Box<CbmlType>,
-        alowd_values: Vec<Literal>, // 1 | 2 | 3
+        alowd_values: Vec<LiteralKind>, // 1 | 2 | 3
     }, // 匿名联合类型
 
     Optional {
@@ -414,6 +461,8 @@ pub struct StructDef {
 
     // fields: HashMap<String, CbmlType>, // 字段名不能重复, 所以用 HashMap.
     pub fields: Vec<StructFieldDefStmt>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
+
+    pub name_span: Span,
 }
 
 /// 具名 enum
@@ -429,14 +478,14 @@ pub struct EnumDef {
 pub struct UnionDef {
     pub union_name: String,
     pub base_type: CbmlType,
-    pub allowed_values: Vec<Literal>, // 1 | 2 | 3
+    pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
 }
 
 impl UnionDef {
     #[allow(dead_code)]
-    pub fn duplicate_check(&self) -> Vec<Literal> {
-        let mut re: Vec<&Literal> = Vec::new();
-        let mut duplicated: Vec<Literal> = Vec::new();
+    pub fn duplicate_check(&self) -> Vec<LiteralKind> {
+        let mut re: Vec<&LiteralKind> = Vec::new();
+        let mut duplicated: Vec<LiteralKind> = Vec::new();
         for v in &self.allowed_values {
             if re.contains(&v) {
                 duplicated.push(v.clone());

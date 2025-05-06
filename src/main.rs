@@ -1,7 +1,7 @@
 mod lexer;
 mod parser;
-mod typecheck;
 mod source_map;
+mod typecheck;
 
 fn main() {
     tests::test_parser();
@@ -83,22 +83,22 @@ mod tests {
     fn asdfasdfsdf(path: &str) {
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
-        dsafdasfsadf(&code);
+        dsafdasfsadf(path, &code);
     }
 
-    fn dsafdasfsadf(code: &str) {
+    fn dsafdasfsadf(path: &str, code: &str) {
         use crate::parser::cbml_parser::CbmlParser;
 
-        let tokens = tokenizer(&code)
+        let tokens = tokenizer(path, code)
             .map_err(|e| {
-                println!("{}", e);
+                println!("{:?}", e);
                 return e;
             })
             .unwrap();
 
         // dp(format!("tokens: {:?}", tokens));
 
-        let mut parser = CbmlParser::new(&tokens);
+        let mut parser = CbmlParser::new(path.to_string(), &tokens);
         let re = parser.parse();
 
         drop(tokens);
@@ -111,21 +111,22 @@ mod tests {
 
                 // dp("start typecheck: ");
 
-                let re = typecheck(ast);
+                let re = typecheck(path.into(), ast);
 
                 if re.is_empty() {
                     dp("没有检查出类型错误.");
                 } else {
                     // has errors.
                     re.iter().for_each(|x| {
-                        dp(format!("{:?}", x));
+                        x.report_error(code);
+                        // dp(format!("{:?}", x));
                     });
                 }
             }
             Err(e) => {
                 e.iter().for_each(|s| {
-                    dp(format!("message: {:?}", s.message));
-                    dp(format!("tok: {:?}", s.token));
+                    dp(format!("message: {:?}", s.msg));
+                    // dp(format!("tok: {:?}", s.token));
                 });
 
                 panic!();
