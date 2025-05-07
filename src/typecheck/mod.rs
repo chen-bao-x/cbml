@@ -489,12 +489,12 @@ impl TypeChecker {
 
                 // 检查 alowd_values 的类型是否符合 base_type
                 for x in &union_def.allowed_values {
-                    if !self.is_same_type(&union_def.base_type, x) {
+                    if !self.is_same_type(&union_def.base_type, &x.kind) {
                         return ParserError::err_mismatched_types(
                             self.file_path.clone(),
-                            todo!(),
+                            x.span,
                             &union_def.base_type.to_cbml_code(),
-                            &x.to_cbml_code(),
+                            &x.kind.to_cbml_code(),
                         )
                         .into();
                     }
@@ -502,21 +502,30 @@ impl TypeChecker {
 
                 // alowd_values 是否有重复的.
                 {
-                    let allowed_values: Vec<LiteralKind> = union_def.allowed_values.clone();
+                    let allowed_values: Vec<LiteralKind> = {
+                        let mut arr: Vec<LiteralKind> = vec![];
+                        for x in &union_def.allowed_values {
+                            arr.push(x.kind.clone());
+                        }
+
+                        arr
+                    };
+
                     let mut arr: Vec<&LiteralKind> = vec![];
 
-                    for x in &allowed_values {
-                        if arr.contains(&x) {
+                    // for x in &allowed_values {
+                    for x in &union_def.allowed_values {
+                        if arr.contains(&&x.kind) {
                             // 有重复的项
 
                             return ParserError::err_union_duplicated_item(
                                 self.file_path.clone(),
-                                todo!(),
-                                &x.to_cbml_code(),
+                                x.span,
+                                &x.kind.to_cbml_code(),
                             )
                             .into();
                         } else {
-                            arr.push(x);
+                            arr.push(&x.kind);
                         }
                     }
                 }
@@ -545,6 +554,16 @@ impl TypeChecker {
             }
 
             StmtKind::Use(_url) => {
+                if !self.asignments.is_empty() {
+                    return ParserError {
+                        file_path: self.file_path.clone(),
+                        msg: format!("`use` 只能在文件的最开头."),
+                        code_location: _url.keyword_span.clone(),
+                        note: None,
+                        help: Some(format!("尝试将 `use` 移动到第一行")),
+                    }
+                    .into();
+                }
                 if self.is_typedefed {
                     return ParserError::err_use_can_only_def_onece(
                         self.file_path.clone(),
@@ -593,11 +612,13 @@ impl TypeChecker {
                         };
                     }
                     None => {
-                        return Some(ParserError::err_unknow_field(
-                            self.file_path.clone(),
-                            asign.field_name_span.clone(),
-                            &asign.field_name,
-                        ));
+                        if self.is_typedefed {
+                            return Some(ParserError::err_unknow_field(
+                                self.file_path.clone(),
+                                asign.field_name_span.clone(),
+                                &asign.field_name,
+                            ));
+                        }
                     }
                 };
 
@@ -702,6 +723,11 @@ impl TypeChecker {
                 match literal {
                     LiteralKind::Struct(asignment_stmts) => {
                         if asignment_stmts.len() != struct_field_def_stmts.len() {
+                            // 结构体字面量数量不同,
+                            // 还有这些 field 需要填写,
+                            // 这些 field 没有定义.
+                            // TODO:
+
                             return false;
                         }
 
@@ -721,22 +747,35 @@ impl TypeChecker {
                     }
                     LiteralKind::Todo => {
                         // 不检查 todo.
+
                         return true;
                     }
                     LiteralKind::Default => todo!("自定义 struct 类型的默认值暂时还未支持"),
 
                     _ => false,
                 }
-                // return literal.to_cbml_type() == CbmlType::Struct(struct_field_def_stmts.clone());
             }
             CbmlType::Union {
                 base_type,
                 alowd_values,
-            } => alowd_values.contains(literal) && self.is_same_type(base_type, literal),
-            CbmlType::Optional { inner_type } => match literal {
-                LiteralKind::LiteralNone => true,
-                _ => self.is_same_type(inner_type, literal),
-            },
+            } => {
+                let arr: Vec<LiteralKind> = {
+                    let mut a = vec![];
+                    for x in alowd_values {
+                        a.push(x.kind.clone());
+                    }
+
+                    a
+                };
+
+                return arr.contains(literal) && self.is_same_type(base_type, literal);
+            }
+            CbmlType::Optional { inner_type } => {
+                return match literal {
+                    LiteralKind::LiteralNone => true,
+                    _ => self.is_same_type(inner_type, literal),
+                };
+            }
             CbmlType::Enum {
                 enum_name: _enum_name,
                 fields,

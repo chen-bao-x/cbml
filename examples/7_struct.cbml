@@ -1,0 +1,6 @@
+use "/Users/chenbao/Documents/GitHub/cbml/examples/7_struct_def.cbml"
+
+p = {
+    name = "",
+    age = "9",
+}

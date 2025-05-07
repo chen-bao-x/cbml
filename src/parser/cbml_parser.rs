@@ -1,7 +1,7 @@
 use super::{
     ParserError,
     ast::stmt::{
-        AsignmentStmt, CbmlType, DocumentStmt, LiteralKind, Literal, StmtKind, StructDef,
+        AsignmentStmt, CbmlType, DocumentStmt, Literal, LiteralKind, StmtKind, StructDef,
         StructFieldDefStmt, UnionDef, UseStmt,
     },
 };
@@ -256,8 +256,16 @@ impl<'a> CbmlParser<'a> {
                     tk::Pipe | tk::Number(_) | tk::String(_) => {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
+                        let kinds = {
+                            let mut arr: Vec<LiteralKind> = vec![];
+                            for x in &alowd_values {
+                                arr.push(x.kind.clone());
+                            }
+                            arr
+                        };
 
-                        let base_type: CbmlType = LiteralKind::union_base_type(&alowd_values);
+                        let base_type: CbmlType = LiteralKind::union_base_type(&kinds);
+
                         return Ok(CbmlType::Union {
                             base_type: Box::new(base_type),
                             alowd_values,
@@ -272,7 +280,15 @@ impl<'a> CbmlParser<'a> {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
-                        let base_type: CbmlType = LiteralKind::union_base_type(&alowd_values);
+                        let kinds = {
+                            let mut arr: Vec<LiteralKind> = vec![];
+                            for x in &alowd_values {
+                                arr.push(x.kind.clone());
+                            }
+                            arr
+                        };
+
+                        let base_type: CbmlType = LiteralKind::union_base_type(&kinds);
                         return Ok(CbmlType::Union {
                             base_type: Box::new(base_type),
                             alowd_values,
@@ -467,7 +483,6 @@ impl<'a> CbmlParser<'a> {
                                 self.consume(tk::Asign)?;
 
                                 let value = self.parse_literal()?;
-                                let arr = self.parse_array_literal()?;
 
                                 fields.push(AsignmentStmt {
                                     field_name: name.clone(),
@@ -708,8 +723,9 @@ impl<'a> CbmlParser<'a> {
         };
     }
 
-    fn parse_union_fields(&mut self) -> Result<Vec<LiteralKind>, ParserError> {
-        let mut literals: Vec<LiteralKind> = vec![];
+    // fn parse_union_fields(&mut self) -> Result<Vec<LiteralKind>, ParserError> {
+    fn parse_union_fields(&mut self) -> Result<Vec<Literal>, ParserError> {
+        let mut literals: Vec<Literal> = vec![];
 
         let mut count = 0;
 
@@ -724,7 +740,7 @@ impl<'a> CbmlParser<'a> {
                 _ = self.consume(tk::Pipe); // pipe{0,1} 第一个 pipe 符号可有可无.
 
                 let literal = self.parse_literal()?; // literal
-                literals.push(literal.kind);
+                literals.push(literal);
             } else {
                 // union_field = pipe literal
 
@@ -733,7 +749,7 @@ impl<'a> CbmlParser<'a> {
                 if self.peek().kind.clone().kind_is(&tk::Pipe) {
                     self.consume(tk::Pipe)?; // pipe
                     let literal = self.parse_literal()?; // literal
-                    literals.push(literal.kind);
+                    literals.push(literal);
                 } else {
                     break;
                 }

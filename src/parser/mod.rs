@@ -41,7 +41,8 @@ impl ParserError {
         // let line_idx = self.code_location.start.character_index;
 
         let line_start = self.code_location.start.character_index - 1;
-        let line_end = self.code_location.end.character_index;
+
+        // let line_end = self.code_location.end.character_index;
         let line_end = source_code[line_start..]
             .find('\n')
             .map(|i| line_start + i)
@@ -67,6 +68,10 @@ impl ParserError {
         println!("    |");
         println!("{:>3} | {}", line, line_text);
         println!("    | {:>width$}^", "", width = col - 1);
+
+        if let Some(s) = &self.help {
+            println!("  help: {}", s);
+        };
     }
 }
 

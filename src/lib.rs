@@ -3,9 +3,9 @@ mod parser;
 mod source_map;
 mod typecheck;
 
-fn main() {
-    tests::test_parser();
-}
+// fn main() {
+//     tests::test_parser();
+// }
 
 // 在编写时的 错误检查
 // language server
@@ -34,12 +34,12 @@ fn timeit(count: usize, f: fn()) {
     println!("耗时：{:?}", duration);
 }
 
-// #[cfg(test)]
+#[cfg(test)]
 mod tests {
 
     use crate::{dp, lexer::tokenizer, typecheck::typecheck};
 
-    // #[test]
+    #[test]
     pub fn test_parser() {
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
 
@@ -55,9 +55,9 @@ mod tests {
 
         // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/6_optinal.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
+        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct.cbml");
 
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
+        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
     }
 
     #[test]

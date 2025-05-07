@@ -233,6 +233,7 @@ impl Lexer {
                             self.current.clear();
                             self.push(ch);
                             self.state = State::InIdentifier;
+                            self.mark_start_pos();
                         }
                         // 处理无效字符
                         x => {
@@ -255,37 +256,24 @@ impl Lexer {
                         }
                     }
                 }
-                State::InIdentifier => {
-                    match ch {
-                        x if x.is_alphanumeric() || x == '_' => {
-                            self.push(ch);
-                        }
-
-                        _ => {
-                            // let tok = Token::new(
-                            //     tk::Identifier(std::mem::take(&mut self.current)).handle_keyword(),
-                            //     self.line,
-                            //     self.column,
-                            // );
-
-                            // tokens.push(tok);
-
-                            self.mark_start_pos();
-                            let loc = self.get_pos();
-
-                            let identifier = std::mem::take(&mut self.current);
-
-                            tokens
-                                .push(Token::new(tk::Identifier(identifier).handle_keyword(), loc));
-
-                            self.state = State::Initial;
-
-                            // self.fall_back();
-
-                            self.current.clear();
-                        }
+                State::InIdentifier => match ch {
+                    x if x.is_alphanumeric() || x == '_' => {
+                        self.push(ch);
                     }
-                }
+
+                    _ => {
+                        self.mark_end_pos();
+
+                        let identifier = std::mem::take(&mut self.current);
+                        tokens.push(Token::new(
+                            tk::Identifier(identifier).handle_keyword(),
+                            self.get_pos(),
+                        ));
+
+                        self.state = State::Initial;
+                        self.current.clear();
+                    }
+                },
                 State::BinarayNumber => {
                     match ch {
                         '0' | '1' => {

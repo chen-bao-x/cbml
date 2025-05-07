@@ -386,7 +386,8 @@ pub enum CbmlType {
     /// 匿名 union
     Union {
         base_type: Box<CbmlType>,
-        alowd_values: Vec<LiteralKind>, // 1 | 2 | 3
+        // alowd_values: Vec<LiteralKind>, // 1 | 2 | 3
+        alowd_values: Vec<Literal>, // 1 | 2 | 3
     }, // 匿名联合类型
 
     Optional {
@@ -431,9 +432,9 @@ impl CbmlType {
                 alowd_values.iter().for_each(|x| {
                     counter += 1;
                     if counter < alowd_values.len() {
-                        str.push_str(&format!("{} | ", x.to_cbml_code()));
+                        str.push_str(&format!("{} | ", x.kind.to_cbml_code()));
                     } else {
-                        str.push_str(&format!("{} ", x.to_cbml_code()));
+                        str.push_str(&format!("{} ", x.kind.to_cbml_code()));
                     }
                 });
 
@@ -500,7 +501,8 @@ pub struct EnumDef {
 pub struct UnionDef {
     pub union_name: String,
     pub base_type: CbmlType,
-    pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
+    // pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
+    pub allowed_values: Vec<Literal>, // 1 | 2 | 3
     pub doc: Option<DocumentStmt>,
 }
 
@@ -509,11 +511,12 @@ impl UnionDef {
     pub fn duplicate_check(&self) -> Vec<LiteralKind> {
         let mut re: Vec<&LiteralKind> = Vec::new();
         let mut duplicated: Vec<LiteralKind> = Vec::new();
+
         for v in &self.allowed_values {
-            if re.contains(&v) {
-                duplicated.push(v.clone());
+            if re.contains(&&v.kind) {
+                duplicated.push(v.kind.clone());
             } else {
-                re.push(v)
+                re.push(&v.kind)
             }
         }
         return duplicated;
