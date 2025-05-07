@@ -1,7 +1,7 @@
-mod lexer;
-mod parser;
-mod value;
-mod typecheck;
+pub mod lexer;
+pub mod parser;
+pub mod typecheck;
+pub mod value;
 
 // fn main() {
 //     tests::test_parser();
