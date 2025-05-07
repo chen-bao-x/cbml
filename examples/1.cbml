@@ -5,11 +5,19 @@ package = {
     version = "0.1.0"
     edition = "2021"
 }
-
+todo 
 dependencies = [
   ssh(  { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" }),
     version({ name = "colored", varsion = "3.0.0", })
 ]
+
+
+default
+
+todo 
+
+
+
 
 
 
