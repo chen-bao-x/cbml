@@ -1,6 +1,6 @@
 mod lexer;
 mod parser;
-mod source_map;
+mod value;
 mod typecheck;
 
 // fn main() {
@@ -41,23 +41,24 @@ mod tests {
 
     #[test]
     pub fn test_parser() {
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
+        // /Users/chenbao/GitHub/cbml/examples/1.cmml
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cmml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.typedef.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.typedef.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/2_arr.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/3_enum.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/3_enum.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/4_number.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/4_number.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/5_string.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/5_string.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/6_optinal.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/6_optinal.cbml");
 
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct.cbml");
+        asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/7_struct.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/8_union.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/8_union.cbml");
     }
 
     #[test]
