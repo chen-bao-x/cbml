@@ -35,11 +35,11 @@ impl StmtKind {
         match self.clone() {
             StmtKind::Use(use_stmt) => use_stmt.keyword_span,
             StmtKind::Asignment(asignment_stmt) => asignment_stmt.field_name_span,
-            StmtKind::FileFieldStmt(struct_field_def_stmt) => todo!(),
-            StmtKind::TypeAliasStmt(_) => todo!(),
-            StmtKind::StructDefStmt(struct_def) => todo!(),
-            StmtKind::EnumDef(enum_def) => todo!(),
-            StmtKind::UnionDef(union_def) => todo!(),
+            StmtKind::FileFieldStmt(struct_field_def_stmt) => struct_field_def_stmt.field_name_span,
+            StmtKind::TypeAliasStmt(a) => a.name_span,
+            StmtKind::StructDefStmt(struct_def) => struct_def.name_span,
+            StmtKind::EnumDef(enum_def) => enum_def.name_span,
+            StmtKind::UnionDef(union_def) => union_def.name_span,
             StmtKind::LineComment(_) => todo!(),
             StmtKind::BlockComment(_) => todo!(),
             StmtKind::DocComment(_) => todo!(),
@@ -504,6 +504,7 @@ pub struct UnionDef {
     // pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
     pub allowed_values: Vec<Literal>, // 1 | 2 | 3
     pub doc: Option<DocumentStmt>,
+    pub name_span: Span,
 }
 
 impl UnionDef {

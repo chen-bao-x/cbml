@@ -1,8 +1,9 @@
+pub use ast::stmt::StmtKind;
+pub use cbml_parser::CbmlParser;
+
 use std::default;
 
-pub use ast::stmt::StmtKind;
 use ast::stmt::{AsignmentStmt, StructFieldDefStmt};
-pub use cbml_parser::CbmlParser;
 
 use crate::lexer::token::{Span, Token};
 
@@ -64,10 +65,10 @@ impl ParserError {
         let message = &self.msg;
 
         println!("error: {}", message);
-        println!("  --> {}:{}:{}", self.file_path, line, col);
+        println!("  --> {}:{}:{}", self.file_path, line + 1, col);
         println!("    |");
         println!("{:>3} | {}", line, line_text);
-        println!("    | {:>width$}^", "", width = col - 1);
+        println!("    | {:>width$}^", "", width = col);
 
         if let Some(s) = &self.help {
             println!("  help: {}", s);
@@ -99,6 +100,18 @@ impl default::Default for ParserError {
 }
 
 impl ParserError {
+    pub fn err_cannot_open_file(
+        source_code_file_path: String,
+        target_file_path: &str,
+        span: Span,
+        err: std::io::Error,
+    ) -> Self {
+        Self::new(
+            source_code_file_path,
+            format!("cannot open file: {:?}\n{}", target_file_path, err),
+            span,
+        )
+    }
     pub fn err_cannot_find_type(file_path: String, span: Span, type_name: &str) -> ParserError {
         Self::new(
             file_path,

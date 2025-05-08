@@ -43,7 +43,7 @@ impl<'a> CbmlParser<'a> {
     /// 解析 Token 列表，直到结束并返回 AST
     pub fn parse(&mut self) -> Result<Vec<StmtKind>, Vec<ParserError>> {
         let mut statements = Vec::new();
-        let errors = Vec::new();
+        let mut errors = Vec::new();
 
         while !self.is_at_end() {
             // dp(format!("parse(&mut self) current: {:?}", self.peek()));
@@ -56,12 +56,12 @@ impl<'a> CbmlParser<'a> {
                     statements.push(s);
                 }
                 Err(e) => {
-                    // errors.push(e);
-                    // self.current_position += 1; // 移动到下一个 Token
+                    errors.push(e);
+                    self.current_position += 1; // 移动到下一个 Token
+                    return Err(errors);
+                    // println!("{:?}", e);
 
-                    println!("{:?}", e);
-
-                    panic!();
+                    // panic!();
                 }
             }
             _ = self.eat_zeor_or_multy(tk::NewLine);
@@ -126,7 +126,8 @@ impl<'a> CbmlParser<'a> {
             tk::DocComment(s) => {
                 // self.consume(tk::DocComment("".into()))?;
 
-                todo!();
+                // todo!();
+
                 // let doc = self.parse_document();
                 // let asdf = self.parse_asignment()?;
                 // match asdf {
@@ -146,6 +147,7 @@ impl<'a> CbmlParser<'a> {
 
                 return Ok(StmtKind::DocComment(s));
             }
+
             _ => {
                 // dp(format!("parse_statement error: unkonow token {:?}", tok));
                 // todo!();
@@ -524,17 +526,21 @@ impl<'a> CbmlParser<'a> {
                             span: self.peek().span.clone(),
                         });
                     }
-                    _ => {
-                        println!("{:?}", self.peek());
-                        todo!();
+                    x => {
+                        return Err(ParserError::new(
+                            self.file_path.clone(),
+                            format!("parse_literal error: unkonow token {:?}", x),
+                            tok.span,
+                        ));
+                        // println!("{:?}", self.peek());
+                        // todo!();
                     }
                 }
             }
             _ => {
-                dp(format!("parse_literal error: unkonow token {:?}", tok));
-                todo!();
+                // dp(format!("parse_literal error: unkonow token {:?}", tok));
+                // todo!();
 
-                #[allow(unreachable_code)]
                 return Err(ParserError::new(
                     self.file_path.clone(),
                     format!("parse_literal error: unkonow token {:?}", tok),
@@ -885,10 +891,9 @@ impl<'a> CbmlParser<'a> {
             ));
         };
 
+        let name_tok = self.consume(tk::Identifier("".into()))?.clone();
         // identifier
-        let union_name: String = if let tk::Identifier(union_name) =
-            self.consume(tk::Identifier("".into()))?.kind.clone()
-        {
+        let union_name: String = if let tk::Identifier(union_name) = name_tok.kind {
             union_name
         } else {
             return Err(ParserError::new(
@@ -913,6 +918,7 @@ impl<'a> CbmlParser<'a> {
             base_type,
             allowed_values: alowd_values,
             doc,
+            name_span: name_tok.span,
         }));
     }
 

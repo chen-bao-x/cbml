@@ -1,6 +1,6 @@
 use crate::parser::ParserError;
 
-mod lexer;
+pub mod lexer;
 
 pub mod token;
 

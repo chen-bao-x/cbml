@@ -42,9 +42,9 @@ mod tests {
     #[test]
     pub fn test_parser() {
         // /Users/chenbao/GitHub/cbml/examples/1.cmml
-        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cmml");
+        asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
 
-        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.typedef.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.def.cbml");
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/2_arr.cbml");
 
@@ -56,7 +56,7 @@ mod tests {
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/6_optinal.cbml");
 
-        asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/7_struct.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/7_struct.cbml");
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/8_union.cbml");
     }
@@ -86,6 +86,8 @@ mod tests {
         let code = read_to_string(path).unwrap();
         dsafdasfsadf(path, &code);
     }
+
+  
 
     fn dsafdasfsadf(path: &str, code: &str) {
         use crate::parser::cbml_parser::CbmlParser;
