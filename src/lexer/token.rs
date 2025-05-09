@@ -164,8 +164,13 @@ impl Span {
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Position {
+    /// 行号, 最开头的一个是 0,
     pub line: usize,
+
+    /// 列号, 最开头的一个是 0,
     pub column: usize,
+
+    /// 在文本中的 index.
     pub character_index: usize,
 }
 

@@ -196,4 +196,15 @@ impl ParserError {
             span,
         )
     }
+
+    pub fn err_this_field_donot_have_default_value(
+        file_path: String,
+        literal_kind_defal_token_span: Span,
+    ) -> Self {
+        Self::new(
+            file_path,
+            format!("this field donot have default value"),
+            literal_kind_defal_token_span,
+        )
+    }
 }

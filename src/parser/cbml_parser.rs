@@ -1,8 +1,8 @@
 use super::{
     ParserError,
     ast::stmt::{
-        AsignmentStmt, CbmlType, DocumentStmt, Literal, LiteralKind, StmtKind, StructDef,
-        StructFieldDefStmt, UnionDef, UseStmt,
+        AsignmentStmt, DocumentStmt, Literal, LiteralKind, StmtKind, StructDef, StructFieldDefStmt,
+        TypeAliasStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
     },
 };
 use crate::{
@@ -161,60 +161,132 @@ impl<'a> CbmlParser<'a> {
     }
 
     /// 类型标注
-    fn parse_type_sign(&mut self) -> Result<CbmlType, ParserError> {
+    // fn parse_type_sign(&mut self) -> Result<TypeSignStmtKind, ParserError> {
+    fn parse_type_sign(&mut self) -> Result<TypeSignStmt, ParserError> {
         // any | string | number | bool | identifier | Anonymous_optinal  | Anonymous_array | Anonymous_struct | Anonymous_union
 
         // dp(format!("parse_type_sign(&mut self)"));
 
         // 解析类型声明
-        let tok = self.peek();
+        let tok = self.peek().clone();
         match tok.kind.clone() {
             tk::Any => {
-                self.consume(tk::Any)?;
-                return Ok(CbmlType::Any);
+                let _tok = self.consume(tk::Any)?;
+
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::Any,
+                    span: _tok.span.clone(),
+                };
+
+                return Ok(type_sign);
             }
             tk::StringTy => {
-                self.consume(tk::StringTy)?;
-                return Ok(CbmlType::String);
+                let _tok = self.consume(tk::StringTy)?;
+
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::String,
+                    span: _tok.span.clone(),
+                };
+                return Ok(type_sign);
             }
             tk::NumberTy => {
-                self.consume(tk::NumberTy)?;
-                return Ok(CbmlType::Number);
+                // self.consume(tk::NumberTy)?;
+                // return Ok(TypeSignStmtKind::Number);
+
+                let numberty_tok = self.consume(tk::NumberTy)?;
+
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::Number,
+                    span: numberty_tok.span.clone(),
+                };
+                return Ok(type_sign);
             }
             tk::BooleanTy => {
-                self.consume(tk::BooleanTy)?;
-                return Ok(CbmlType::Boolean);
+                let boolty_tok = self.consume(tk::BooleanTy)?;
+
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::Boolean,
+                    span: boolty_tok.span.clone(),
+                };
+                return Ok(type_sign);
+
+                // self.consume(tk::BooleanTy)?;
+                // return Ok(TypeSignStmtKind::Boolean);
             }
             tk::Identifier(name) => {
-                self.consume(tk::Identifier("".into()))?;
+                let iden_tok = self.consume(tk::Identifier("".into()))?;
 
-                return Ok(CbmlType::Custom(name));
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::Custom(name),
+                    span: iden_tok.span.clone(),
+                };
+                return Ok(type_sign);
+
+                // self.consume(tk::Identifier("".into()))?;
+
+                // return Ok(TypeSignStmtKind::Custom(name));
             }
             tk::QuestionMark => {
                 // 可选类型
-                self.consume(tk::QuestionMark)?;
+
+                let question_mark_tok = self.consume(tk::QuestionMark)?.clone();
                 let inner_type = self.parse_type_sign()?;
-                return Ok(CbmlType::Optional {
-                    inner_type: Box::new(inner_type),
-                });
+
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::Optional {
+                        inner_type: Box::new(inner_type.kind),
+                    },
+                    span: Span {
+                        start: question_mark_tok.span.start,
+                        end: inner_type.span.end,
+                    },
+                };
+
+                return Ok(type_sign);
+
+                // let opt_stmt_span = Span {
+                //     start: question_mark_tok.span.start,
+                //     end: inner_type.get_span().end.clone(),
+                // };
+
+                // return Ok(TypeSignStmtKind::Optional {
+                //     inner_type: Box::new(inner_type),
+                // });
             }
             tk::LBracket => {
                 // 匿名数组
-                self.consume(tk::LBracket)?;
+                let l_tok = self.consume(tk::LBracket)?.clone();
 
                 let inner_type = self.parse_type_sign()?;
 
-                self.consume(tk::RBracket)?;
+                let r_tok = self.consume(tk::RBracket)?.clone();
 
-                return Ok(CbmlType::Array {
-                    inner_type: Box::new(inner_type),
-                });
+                // let array_span = Span {
+                //     start: l_tok.span.start.clone(),
+                //     end: r_tok.span.end.clone(),
+                // };
+
+                let type_sign = TypeSignStmt {
+                    kind: TypeSignStmtKind::Array {
+                        inner_type: Box::new(inner_type.kind),
+                    },
+                    span: Span {
+                        start: l_tok.span.start,
+                        end: r_tok.span.end,
+                    },
+                };
+                return Ok(type_sign);
+
+                // return Ok(TypeSignStmtKind::Array {
+                //     inner_type: Box::new(inner_type),
+
+                // });
             }
             tk::LBrace => {
                 // 解析匿名结构体.
 
                 // 结构体类型
-                self.consume(tk::LBrace)?;
+                let l_tok = self.consume(tk::LBrace)?.clone();
 
                 let mut fields: Vec<StructFieldDefStmt> = vec![];
                 let mut count = 0;
@@ -248,9 +320,20 @@ impl<'a> CbmlParser<'a> {
                     count += 1;
                 }
 
-                self.consume(tk::RBrace)?;
-                let t = CbmlType::Struct(fields);
-                return Ok(t);
+                let r_tok = self.consume(tk::RBrace)?.clone();
+
+                let t = TypeSignStmtKind::Struct(fields);
+
+                let type_sign = TypeSignStmt {
+                    kind: t,
+                    span: Span {
+                        start: l_tok.span.start,
+                        end: r_tok.span.end,
+                    },
+                };
+                return Ok(type_sign);
+
+                // return Ok(t);
             }
 
             x => {
@@ -258,6 +341,7 @@ impl<'a> CbmlParser<'a> {
                     tk::Pipe | tk::Number(_) | tk::String(_) => {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
+
                         let kinds = {
                             let mut arr: Vec<LiteralKind> = vec![];
                             for x in &alowd_values {
@@ -266,12 +350,31 @@ impl<'a> CbmlParser<'a> {
                             arr
                         };
 
-                        let base_type: CbmlType = LiteralKind::union_base_type(&kinds);
+                        let base_type: TypeSignStmtKind = LiteralKind::union_base_type(&kinds);
 
-                        return Ok(CbmlType::Union {
+                        let union_end = alowd_values
+                            .last()
+                            .map(|a| a.span.end.clone())
+                            .unwrap_or(tok.span.end.clone());
+
+                        let kind = TypeSignStmtKind::Union {
                             base_type: Box::new(base_type),
                             alowd_values,
-                        });
+                        };
+
+                        let type_sign = TypeSignStmt {
+                            kind: kind,
+                            span: Span {
+                                start: tok.span.start.clone(),
+                                end: union_end,
+                            },
+                        };
+                        return Ok(type_sign);
+
+                        // return Ok(TypeSignStmtKind::Union {
+                        //     base_type: Box::new(base_type),
+                        //     alowd_values,
+                        // });
                     }
 
                     _ => {}
@@ -290,20 +393,35 @@ impl<'a> CbmlParser<'a> {
                             arr
                         };
 
-                        let base_type: CbmlType = LiteralKind::union_base_type(&kinds);
-                        return Ok(CbmlType::Union {
-                            base_type: Box::new(base_type),
-                            alowd_values,
-                        });
+                        let base_type: TypeSignStmtKind = LiteralKind::union_base_type(&kinds);
+
+                        let union_end = alowd_values
+                            .last()
+                            .map(|a| a.span.end.clone())
+                            .unwrap_or(tok.span.end.clone());
+
+                        let type_sign = TypeSignStmt {
+                            kind: base_type,
+                            span: Span {
+                                start: tok.span.start.clone(),
+                                end: union_end,
+                            },
+                        };
+                        return Ok(type_sign);
+
+                        // return Ok(TypeSignStmtKind::Union {
+                        //     base_type: Box::new(base_type),
+                        //     alowd_values,
+                        // });
                     }
                     _ => {}
                 };
 
-                #[cfg(debug_assertions)]
-                {
-                    dp(format!("parse_type_sign error: unkonow token {:?}", tok));
-                    todo!();
-                }
+                // #[cfg(debug_assertions)]
+                // {
+                //     dp(format!("parse_type_sign error: unkonow token {:?}", tok));
+                //     todo!();
+                // }
 
                 return Err(ParserError::new(
                     self.file_path.clone(),
@@ -494,8 +612,13 @@ impl<'a> CbmlParser<'a> {
                             }
                         }
                         _ => {
-                            dp(format!("parse_literal error: unkonow token {:?}", tok));
-                            todo!();
+                            return Err(ParserError {
+                                file_path: self.file_path.clone(),
+                                msg: format!("parse_literal error: unkonow token {:?}", tok.kind),
+                                code_location: tok.span.clone(),
+                                note: None,
+                                help: None,
+                            });
                         }
                     }
 
@@ -617,6 +740,13 @@ impl<'a> CbmlParser<'a> {
             self.consume(tk::Colon)?;
 
             let field_type = self.parse_type_sign()?;
+            let type_sign = TypeSignStmt {
+                kind: field_type.kind,
+                span: Span {
+                    start: name_tok.span.start.clone(),
+                    end: field_type.span.end,
+                },
+            };
 
             // 默认值
             let default_value = self.parse_default_value()?;
@@ -625,7 +755,7 @@ impl<'a> CbmlParser<'a> {
 
             return Ok(StructFieldDefStmt {
                 field_name: name,
-                _type: field_type,
+                _type: type_sign,
                 default: default_value,
                 field_name_span: name_tok.span,
                 doc,
@@ -717,15 +847,19 @@ impl<'a> CbmlParser<'a> {
                 doc: doc,
             }));
         } else {
-            dp(format!(
-                "parse_struct_def error: unkonow token {:?}",
-                self.peek().clone()
-            ));
-            todo!();
-            // return Err(ParserError::new(
-            //     format!("parse_struct_def error: unkonow token {:?}", self.peek()),
-            //     Some(self.peek().clone()),
-            // ));
+            #[cfg(debug_assertions)]
+            {
+                panic!("在逻辑上时不可能出现的错误.");
+            };
+
+            #[allow(unreachable_code)]
+            return Err(ParserError {
+                file_path: self.file_path.clone(),
+                msg: format!("parse_struct_def error: unkonow token {:?}", name_tok.kind),
+                code_location: name_tok.span.clone(),
+                note: None,
+                help: None,
+            });
         };
     }
 
@@ -872,13 +1006,13 @@ impl<'a> CbmlParser<'a> {
         self.consume(tk::Union)?; // union
 
         // typesign
-        let base_type: CbmlType = if let tk::LParen = self.peek().kind {
+        let base_type: TypeSignStmtKind = if let tk::LParen = self.peek().kind {
             // 解析联合体的基本类型
             self.consume(tk::LParen)?; // LParent
             let base_type = self.parse_type_sign()?; // typesign
             self.consume(tk::RParen)?; // RParent
 
-            base_type
+            base_type.kind
         } else {
             return Err(ParserError::new(
                 self.file_path.clone(),
@@ -939,7 +1073,7 @@ impl<'a> CbmlParser<'a> {
 
             let field = EnumField {
                 field_name,
-                _type: ty,
+                _type: ty.kind,
                 field_name_span: field_name_tok.span,
             };
 

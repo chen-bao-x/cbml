@@ -1,9 +1,5 @@
 use crate::lexer::token::{Span, Token};
 
-struct File {
-    val: Vec<AsignmentStmt>,
-}
-
 /// StructFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
 // struct TypedefFile {
 //     val: Vec<>,
@@ -58,7 +54,7 @@ pub struct UseStmt {
 
 pub struct TypeAliasStmt {
     pub name: String,
-    pub ty: CbmlType,
+    pub ty: TypeSignStmtKind,
     pub doc: Option<DocumentStmt>,
 
     pub name_span: Span,
@@ -80,12 +76,27 @@ pub struct AsignmentStmt {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructFieldDefStmt {
     pub field_name: String,
-    pub _type: CbmlType,
+    // pub _type: TypeSignStmtKind,
+    pub _type: TypeSignStmt,
     pub default: Option<LiteralKind>,
 
     pub doc: Option<DocumentStmt>,
 
     pub field_name_span: Span,
+}
+
+impl StructFieldDefStmt {
+    pub fn to_cbml_code(&self) -> String {
+        let mut re = String::new();
+        re.push_str(&self.field_name);
+        re.push_str(": ");
+        re.push_str(&self._type.kind.to_cbml_code());
+        if let Some(default) = &self.default {
+            re.push_str(" default ");
+            re.push_str(&default.to_cbml_code());
+        }
+        return re;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,7 +110,7 @@ pub struct DocumentStmt {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumField {
     pub field_name: String,
-    pub _type: CbmlType,
+    pub _type: TypeSignStmtKind,
 
     pub field_name_span: Span,
 }
@@ -123,16 +134,13 @@ pub enum LiteralKind {
     Array(Vec<LiteralKind>),    // [1,2,2]
     Struct(Vec<AsignmentStmt>), // 结构体字面量暂时先不做.
 
-    //  union 字面量? 娜 union(string) 的字面量是 string
-    // Union(Vec<Literal>),
-
-    // Optional,
-    // Any,
     /// enum field literal
     EnumFieldLiteral {
         field_name: String,
         literal: Box<LiteralKind>,
     },
+
+    // Optional,
     LiteralNone, // none
     Todo,
     Default,
@@ -157,12 +165,12 @@ impl LiteralKind {
         }
     }
 
-    pub fn union_base_type(arr: &[LiteralKind]) -> CbmlType {
+    pub fn union_base_type(arr: &[LiteralKind]) -> TypeSignStmtKind {
         let re = LiteralKind::union_base_type_2(arr);
         return match re {
             TypeInference::Inferenced(cbml_type) => cbml_type,
             // TypeInference::UnInference => CbmlType::Any,
-            TypeInference::InferenceUnkonw => CbmlType::Any,
+            TypeInference::InferenceUnkonw => TypeSignStmtKind::Any,
         };
     }
 
@@ -178,7 +186,7 @@ impl LiteralKind {
                 if Self::all_same_kind(arr) {
                     return LiteralKind::from_vec_literal(arr);
                 } else {
-                    return TypeInference::Inferenced(CbmlType::Any);
+                    return TypeInference::Inferenced(TypeSignStmtKind::Any);
                 }
             }
         }
@@ -207,13 +215,13 @@ impl LiteralKind {
         let base: &LiteralKind = Self::skip_none(arr).unwrap_or(&LiteralKind::LiteralNone);
 
         return match base {
-            LiteralKind::String { .. } => TypeInference::Inferenced(CbmlType::String),
-            LiteralKind::Number(_) => TypeInference::Inferenced(CbmlType::Number),
-            LiteralKind::Boolean(_) => TypeInference::Inferenced(CbmlType::Boolean),
+            LiteralKind::String { .. } => TypeInference::Inferenced(TypeSignStmtKind::String),
+            LiteralKind::Number(_) => TypeInference::Inferenced(TypeSignStmtKind::Number),
+            LiteralKind::Boolean(_) => TypeInference::Inferenced(TypeSignStmtKind::Boolean),
             LiteralKind::Array(literals) => {
                 let inter_type = LiteralKind::union_base_type(&literals);
 
-                return TypeInference::Inferenced(CbmlType::Array {
+                return TypeInference::Inferenced(TypeSignStmtKind::Array {
                     inner_type: Box::new(inter_type),
                 });
             }
@@ -222,15 +230,23 @@ impl LiteralKind {
                     .iter()
                     .map(|x| {
                         let re = LiteralKind::from_vec_literal(&[x.value.clone().kind]);
-                        let ty: CbmlType = match re {
+                        let ty: TypeSignStmtKind = match re {
                             TypeInference::Inferenced(cbml_type) => cbml_type,
                             // TypeInference::UnInference => CbmlType::Any,
-                            TypeInference::InferenceUnkonw => CbmlType::Any,
+                            TypeInference::InferenceUnkonw => TypeSignStmtKind::Any,
+                        };
+
+                        let type_sign = TypeSignStmt {
+                            kind: ty,
+                            span: Span {
+                                start: x.field_name_span.start.clone(),
+                                end: x.value.span.end.clone(),
+                            },
                         };
 
                         return StructFieldDefStmt {
                             field_name: x.field_name.clone(),
-                            _type: ty,
+                            _type: type_sign,
                             default: None,
                             field_name_span: x.field_name_span.clone(),
                             doc: None,
@@ -238,7 +254,7 @@ impl LiteralKind {
                     })
                     .collect();
 
-                return TypeInference::Inferenced(CbmlType::Struct(asdf));
+                return TypeInference::Inferenced(TypeSignStmtKind::Struct(asdf));
             }
             LiteralKind::LiteralNone => TypeInference::InferenceUnkonw,
             LiteralKind::Todo => todo!(),
@@ -364,11 +380,18 @@ impl LiteralKind {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeSignStmt {
+    pub kind: TypeSignStmtKind,
+    pub span: Span,
+}
+
+// TypeSignStmtKind
 /// 自带的几个基础类型
 /// struct enum union 支持 匿名类型.
 // #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
-pub enum CbmlType {
+pub enum TypeSignStmtKind {
     String,  // string
     Number,  // number
     Boolean, // bool
@@ -377,7 +400,7 @@ pub enum CbmlType {
     /// 匿名数组类型
     /// [Type]
     Array {
-        inner_type: Box<CbmlType>,
+        inner_type: Box<TypeSignStmtKind>,
     },
 
     /// 匿名结构体
@@ -385,13 +408,14 @@ pub enum CbmlType {
 
     /// 匿名 union
     Union {
-        base_type: Box<CbmlType>,
+        base_type: Box<TypeSignStmtKind>,
         // alowd_values: Vec<LiteralKind>, // 1 | 2 | 3
         alowd_values: Vec<Literal>, // 1 | 2 | 3
     }, // 匿名联合类型
 
     Optional {
-        inner_type: Box<CbmlType>,
+        inner_type: Box<TypeSignStmtKind>,
+        // span: Span,
     }, // ?string /number ?bool ?[string] ?[number] ?[bool] ?{name: string}
 
     /// 匿名 enum
@@ -405,24 +429,44 @@ pub enum CbmlType {
     Custom(String), // 自定义类型 struct name, union(string) name, type name,
 }
 
-impl CbmlType {
+#[derive(Debug, Clone, PartialEq)]
+pub enum CbmlType {
+    String,
+    Number,
+    Bool,
+    Any,
+
+    Array { inner_type: Box<CbmlType> },
+    Struct { fields: Vec<(String, CbmlType)> },
+    Union { allowed_values: Vec<LiteralKind> },
+    Optional { inner_type: Box<CbmlType> },
+    Enum { fields: Vec<(String, CbmlType)> },
+}
+
+impl TypeSignStmtKind {
     pub fn to_cbml_code(&self) -> String {
         match self {
-            CbmlType::String => format!("string"),
-            CbmlType::Number => format!("number"),
-            CbmlType::Boolean => format!("bool"),
-            CbmlType::Any => format!("any"),
-            CbmlType::Array { inner_type } => format!("[{}]", inner_type.to_cbml_code()),
-            CbmlType::Struct(struct_field_def_stmts) => {
+            TypeSignStmtKind::String => format!("string"),
+            TypeSignStmtKind::Number => format!("number"),
+            TypeSignStmtKind::Boolean => format!("bool"),
+            TypeSignStmtKind::Any => format!("any"),
+            TypeSignStmtKind::Array { inner_type, .. } => {
+                format!("[{}]", inner_type.to_cbml_code())
+            }
+            TypeSignStmtKind::Struct(struct_field_def_stmts) => {
                 let mut str = String::new();
                 str.push_str("{");
                 for s in struct_field_def_stmts {
-                    str.push_str(&format!("{}: {}, ", s.field_name, s._type.to_cbml_code()));
+                    str.push_str(&format!(
+                        "{}: {}, ",
+                        s.field_name,
+                        s._type.kind.to_cbml_code()
+                    ));
                 }
                 str.push_str("}");
                 return str;
             }
-            CbmlType::Union {
+            TypeSignStmtKind::Union {
                 base_type: _base_type,
                 alowd_values,
             } => {
@@ -440,10 +484,10 @@ impl CbmlType {
 
                 return str;
             }
-            CbmlType::Optional { inner_type } => {
+            TypeSignStmtKind::Optional { inner_type } => {
                 format!("?{}", inner_type.to_cbml_code())
             }
-            CbmlType::Enum {
+            TypeSignStmtKind::Enum {
                 enum_name: field_name,
                 fields,
             } => {
@@ -451,22 +495,46 @@ impl CbmlType {
                 str.push_str(&format!("enum {} {{", field_name));
                 for field in fields {
                     str.push_str(&format!(
-                        "{}: {}, ",
+                        "{}( {} )\n ",
                         field.field_name,
                         field._type.to_cbml_code()
                     ));
                 }
-                str.push_str("}");
+                str.push_str(r"}");
                 return str;
             }
-            CbmlType::Custom(name) => name.clone(),
+            TypeSignStmtKind::Custom(name) => name.clone(),
         }
     }
+    pub fn is_custom_ty(&self) -> bool {
+        match self {
+            TypeSignStmtKind::Custom(_) => true,
+            _ => false,
+        }
+    }
+
+    // pub fn get_span(&self) -> &Span {
+    //     match self {
+    //         TypeSignStmtKind::String => todo!(),
+    //         TypeSignStmtKind::Number => todo!(),
+    //         TypeSignStmtKind::Boolean => todo!(),
+    //         TypeSignStmtKind::Any => todo!(),
+    //         TypeSignStmtKind::Array { span, .. } => span,
+    //         TypeSignStmtKind::Struct(struct_field_def_stmts) => todo!(),
+    //         TypeSignStmtKind::Union {
+    //             base_type,
+    //             alowd_values,
+    //         } => todo!(),
+    //         TypeSignStmtKind::Optional { inner_type, span } => span,
+    //         TypeSignStmtKind::Enum { enum_name, fields } => todo!(),
+    //         TypeSignStmtKind::Custom(_) => todo!(),
+    //     }
+    // }
 }
 
 #[derive(Debug, Clone)]
 pub enum TypeInference {
-    Inferenced(CbmlType), // 推导出来的类型.
+    Inferenced(TypeSignStmtKind), // 推导出来的类型.
     // UnInference,          // 还没推导
     InferenceUnkonw, // 推导了, 没推导出来.
 }
@@ -500,7 +568,7 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct UnionDef {
     pub union_name: String,
-    pub base_type: CbmlType,
+    pub base_type: TypeSignStmtKind,
     // pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
     pub allowed_values: Vec<Literal>, // 1 | 2 | 3
     pub doc: Option<DocumentStmt>,
