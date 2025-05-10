@@ -3,7 +3,7 @@ pub use cbml_parser::CbmlParser;
 
 use std::default;
 
-use ast::stmt::{AsignmentStmt, StructFieldDefStmt};
+use ast::stmt::AsignmentStmt;
 
 use crate::lexer::token::{Span, Token};
 
@@ -17,7 +17,7 @@ pub fn parse(file_path: String, source: &[Token]) -> Result<Vec<StmtKind>, Vec<P
     return parser.parse();
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ParserError {
     pub file_path: String,
     pub msg: String,
@@ -68,7 +68,7 @@ impl ParserError {
         println!("  --> {}:{}:{}", self.file_path, line + 1, col);
         println!("    |");
         println!("{:>3} | {}", line, line_text);
-        println!("    | {:>width$}^", "", width = col);
+        println!("    | {:>width$}^", "", width = col as usize);
 
         if let Some(s) = &self.help {
             println!("  help: {}", s);

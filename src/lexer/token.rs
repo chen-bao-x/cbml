@@ -25,7 +25,6 @@ impl std::cmp::PartialEq for Token {
 pub enum TokenKind {
     String(String), // staring literal
     Number(f64),    // number literal 十进制 二进制 十六进制 写法.
-
     LineComment(String),
     BlockComment(String),
     DocComment(String),
@@ -44,6 +43,7 @@ pub enum TokenKind {
     QuestionMark, // ?
     Asign,        // =
     NewLine,      // new line
+    DoubleQuote,  // "
 
     // key words
     True,    // true
@@ -125,6 +125,7 @@ impl TokenKind {
             (TokenKind::BooleanTy, TokenKind::BooleanTy) => true,
             (TokenKind::Enum, TokenKind::Enum) => true,
             (TokenKind::EOF, TokenKind::EOF) => true,
+            (TokenKind::DoubleQuote, TokenKind::DoubleQuote) => true,
 
             _ => false,
         }
@@ -142,7 +143,7 @@ impl Span {
     pub fn lookup<'a>(&self, code: &'a str) -> Option<&'a str> {
         let start_pos = self.start.character_index;
         let end_pos = self.end.character_index;
-        code.get(start_pos..end_pos)
+        code.get(start_pos..=end_pos)
     }
 
     pub fn empty() -> Self {
@@ -159,23 +160,31 @@ impl Span {
             },
         }
     }
+
+    pub fn is_contain(&self, line: u32, colunm: u32) -> bool {
+        let a = self.start.line <= line && self.end.line >= line;
+        let b = self.start.column <= colunm && self.end.column >= colunm;
+
+        return a && b;
+    }
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Position {
     /// 行号, 最开头的一个是 0,
-    pub line: usize,
+    // pub line: usize,
+    pub line: u32,
 
     /// 列号, 最开头的一个是 0,
-    pub column: usize,
+    pub column: u32,
 
     /// 在文本中的 index.
     pub character_index: usize,
 }
 
 impl Position {
-    pub fn new(line: usize, column: usize, character_index: usize) -> Self {
+    pub fn new(line: u32, column: u32, character_index: usize) -> Self {
         Self {
             line,
             column,

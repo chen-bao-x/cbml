@@ -1,44 +1,57 @@
+
 package: {
-name: string default "hello"
-version: string
-edition: string
+    name: string default "hello"
+    version: string
+    edition: string
 }
 
 dependencies: [dependencie]
 
 struct dependencie_with_ssh {
-name: string
-git: string
-branch: string
+    name: string
+    git: string
+    branch: string
 }
 
 struct dependencie_whith_version {
-name:string
-varsion: string
+    name: string
+    varsion: string
 }
 
 enum dependencie {
-ssh({
-name: string
-git: string
-branch: string
-})
-version(dependencie_whith_version)
+    ssh({
+        name: string
+        git: string
+        branch: string
+    }) 
+    version(dependencie_whith_version) 
 }
 
-union(number) Haha = 1 | 2 | 3
-
-asdfadsf: 1 | 2 | 3
+asdfadsf: 1 | 2 | 3 
 
 opt_string: ?string
+
 opt_number: ?number
+
 opt_boolean: ?bool
+
 opt_arr_string: ?[string]
+
 opt_arr_number: ?[number]
+
 opt_arr_boolean: ?[boolean]
-opt_struct: ?{name:string}
-opt_struct_2: ?{name:string,age:number}
-opt_union: ? 1|2|3
+
+opt_struct: ?{
+    name: string
+}
+
+opt_struct_2: ?{
+    name: string
+    age: number
+}
+
+opt_union: ?1 | 2 | 3 
+
 opt_any: ?any
 
 opt_opt_number: ??number
@@ -48,38 +61,45 @@ arr_arr_number: [[number]]
 number_default: number default 99
 
 tree: {
-    name: string 
-    age: number 
+    name: string
+    age: number
     obj: {
-        name: string 
+        name: string
         age: number
-            obj: {
-            name: string 
+        obj: {
+            name: string
             age: number
             obj: {
-            name: string 
-            age: number
-            obj: {
-            name: string 
-            age: number
-            obj: {
-            name: string 
-            age: number
-            obj: {
-            name: string 
-            age: number
-        }
-        }
-        }
-        }
+                name: string
+                age: number
+                obj: {
+                    name: string
+                    age: number
+                    obj: {
+                        name: string
+                        age: number
+                        obj: {
+                            name: string
+                            age: number
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-opt: | 1 | 2 | 23
+opt: 1 | 2 | 23 
 
 enum_1: dependencie
+
 enum_2: dependencie
 
 name: string default "hello"
+
 age: ?number
+
+haha: {
+    name: string
+    age: number
+}

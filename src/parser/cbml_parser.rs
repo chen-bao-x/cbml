@@ -1,8 +1,7 @@
 use super::{
     ParserError,
     ast::stmt::{
-        AsignmentStmt, DocumentStmt, Literal, LiteralKind, StmtKind, StructDef, StructFieldDefStmt,
-        TypeAliasStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
+        AsignmentStmt, DocumentStmt, Literal, LiteralKind, StmtKind, StructDef, StructFieldDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
     },
 };
 use crate::{
@@ -11,7 +10,7 @@ use crate::{
 };
 use crate::{
     lexer::token::Token,
-    parser::ast::stmt::{EnumDef, EnumField},
+    parser::ast::stmt::{EnumDef, EnumFieldDef},
 };
 
 /// cbml 解析器
@@ -19,6 +18,8 @@ pub struct CbmlParser<'a> {
     file_path: String,
     tokens: &'a [Token],
     current_position: usize,
+
+    /// end of file
     eof: Token,
 }
 
@@ -710,7 +711,7 @@ impl<'a> CbmlParser<'a> {
         };
     }
 
-    fn parse_default_value(&mut self) -> Result<Option<LiteralKind>, ParserError> {
+    fn parse_default_value(&mut self) -> Result<Option<Literal>, ParserError> {
         // 解析默认值
         let tok = self.peek();
         match tok.kind.clone() {
@@ -719,7 +720,7 @@ impl<'a> CbmlParser<'a> {
 
                 let value = self.parse_literal()?;
 
-                return Ok(Some(value.kind));
+                return Ok(Some(value));
             }
             _ => {
                 return Ok(None);
@@ -943,7 +944,7 @@ impl<'a> CbmlParser<'a> {
 
             self.eat_zeor_or_multy(tk::NewLine)?; // newline{0,}
 
-            let mut fields: Vec<EnumField> = vec![];
+            let mut fields: Vec<EnumFieldDef> = vec![];
 
             {
                 // enum_field{0,}
@@ -1056,7 +1057,7 @@ impl<'a> CbmlParser<'a> {
         }));
     }
 
-    fn parse_enum_field(&mut self) -> Result<EnumField, ParserError> {
+    fn parse_enum_field(&mut self) -> Result<EnumFieldDef, ParserError> {
         // enum_field =   identifier LParent typedef RParent newline
 
         // let field_name_tok = self.consume(tk::Identifier("".into()))?; // identifier
@@ -1071,7 +1072,7 @@ impl<'a> CbmlParser<'a> {
 
             self.consume(tk::NewLine)?;
 
-            let field = EnumField {
+            let field = EnumFieldDef {
                 field_name,
                 _type: ty.kind,
                 field_name_span: field_name_tok.span,
@@ -1088,17 +1089,23 @@ impl<'a> CbmlParser<'a> {
     fn parse_enum_literal(&mut self) -> Result<LiteralKind, ParserError> {
         // enum_literal = identifier LParent literal RParent
 
+        let name_tok = self.consume(tk::Identifier("".into()))?.clone();
         // LParent
-        if let tk::Identifier(name) = self.consume(tk::Identifier("".into()))?.kind.clone() {
-            self.consume(tk::LParen)?; // LParent
+        // if let tk::Identifier(name) = self.consume(tk::Identifier("".into()))?.kind.clone() {
+        if let tk::Identifier(name) = name_tok.kind {
+            let _ = self.consume(tk::LParen)?.clone(); // LParent
 
             let lit = self.parse_literal()?; // literal
 
-            self.consume(tk::RParen)?; // RParent
+            let _ = self.consume(tk::RParen)?.clone(); // RParent
 
             return Ok(LiteralKind::EnumFieldLiteral {
                 field_name: name,
                 literal: lit.kind.into(),
+                span: name_tok.span, // span: Span {
+                                //     start: l_tok.span.start,
+                                //     end: r_tok.span.end,
+                                // },
             });
         } else {
             panic!("这是逻辑上不可能出现的错误.");

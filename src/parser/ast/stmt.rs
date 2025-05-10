@@ -1,4 +1,6 @@
-use crate::lexer::token::{Span, Token};
+use std::{convert::identity, io::repeat, process::Command};
+
+use crate::{ToCbmlCode, indent, lexer::token::Span};
 
 /// StructFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
 // struct TypedefFile {
@@ -43,6 +45,41 @@ impl StmtKind {
     }
 }
 
+impl ToCbmlCode for Vec<StmtKind> {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+
+        for x in self {
+            // top level field 间隔一行更好看.
+            if deepth == 0 {
+                re.push_str("\n");
+            }
+            re.push_str(&x.to_cbml_code(deepth));
+            re.push('\n');
+        }
+
+        return re;
+    }
+}
+impl ToCbmlCode for StmtKind {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        match self {
+            StmtKind::Use(use_stmt) => use_stmt.to_cbml_code(deepth),
+            StmtKind::Asignment(asignment_stmt) => asignment_stmt.to_cbml_code(deepth),
+            StmtKind::FileFieldStmt(struct_field_def_stmt) => {
+                struct_field_def_stmt.to_cbml_code(deepth)
+            }
+            StmtKind::TypeAliasStmt(type_alias_stmt) => type_alias_stmt.to_cbml_code(deepth),
+            StmtKind::StructDefStmt(struct_def) => struct_def.to_cbml_code(deepth),
+            StmtKind::EnumDef(enum_def) => enum_def.to_cbml_code(deepth),
+            StmtKind::UnionDef(union_def) => union_def.to_cbml_code(deepth),
+            StmtKind::LineComment(s) => format!("// {}", s),
+            StmtKind::BlockComment(s) => format!("/* {} */", s),
+            StmtKind::DocComment(s) => format!("/// {}", s),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UseStmt {
     pub url: String,
@@ -50,14 +87,34 @@ pub struct UseStmt {
     pub url_span: Span,
 }
 
+impl ToCbmlCode for UseStmt {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        if self.url.starts_with("\"") && self.url.ends_with("\"") {
+            return format!("use {}", self.url);
+        } else {
+            format!("use \"{}\"", self.url)
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 
 pub struct TypeAliasStmt {
     pub name: String,
-    pub ty: TypeSignStmtKind,
+    pub ty: TypeSignStmt,
     pub doc: Option<DocumentStmt>,
 
     pub name_span: Span,
+}
+impl ToCbmlCode for TypeAliasStmt {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+        re.push_str(&format!("type {} = ", self.name));
+        re.push_str(&self.ty.to_cbml_code(deepth));
+        re.push_str("\n");
+
+        return re;
+    }
 }
 
 /// 赋值语句,
@@ -70,6 +127,21 @@ pub struct AsignmentStmt {
     pub field_name_span: Span,
 }
 
+impl ToCbmlCode for AsignmentStmt {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+
+        re.push_str(&format!(
+            "{}{} = {}",
+            "    ".repeat(deepth),
+            self.field_name,
+            self.value.kind.to_cbml_code(deepth)
+        ));
+
+        return re;
+    }
+}
+
 /// 属性类型申明
 /// name: string
 /// name: string default "hello"
@@ -78,7 +150,8 @@ pub struct StructFieldDefStmt {
     pub field_name: String,
     // pub _type: TypeSignStmtKind,
     pub _type: TypeSignStmt,
-    pub default: Option<LiteralKind>,
+    // pub default: Option<LiteralKind>,
+    pub default: Option<Literal>,
 
     pub doc: Option<DocumentStmt>,
 
@@ -86,15 +159,41 @@ pub struct StructFieldDefStmt {
 }
 
 impl StructFieldDefStmt {
-    pub fn to_cbml_code(&self) -> String {
+    pub fn end_span(&self) -> Span {
+        if let Some(v) = &self.default {
+            return v.span.clone();
+        } else {
+            return self._type.span.clone();
+        }
+    }
+}
+
+impl ToCbmlCode for Vec<StructFieldDefStmt> {
+    fn to_cbml_code(&self, deepth: usize) -> String {
         let mut re = String::new();
+
+        for x in self {
+            re.push_str(&x.to_cbml_code(deepth));
+            re.push('\n');
+        }
+
+        return re;
+    }
+}
+impl ToCbmlCode for StructFieldDefStmt {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+
+        re.push_str(&"    ".repeat(deepth));
         re.push_str(&self.field_name);
         re.push_str(": ");
-        re.push_str(&self._type.kind.to_cbml_code());
+        re.push_str(&self._type.kind.to_cbml_code(deepth));
+
         if let Some(default) = &self.default {
             re.push_str(" default ");
-            re.push_str(&default.to_cbml_code());
+            re.push_str(&default.kind.to_cbml_code(deepth));
         }
+
         return re;
     }
 }
@@ -108,11 +207,24 @@ pub struct DocumentStmt {
 /// 枚举属性申明
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
-pub struct EnumField {
+pub struct EnumFieldDef {
     pub field_name: String,
     pub _type: TypeSignStmtKind,
 
     pub field_name_span: Span,
+}
+
+impl ToCbmlCode for EnumFieldDef {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+        re.push_str(&"    ".repeat(deepth));
+        re.push_str(&self.field_name);
+        re.push_str("(");
+        re.push_str(&self._type.to_cbml_code(deepth));
+        re.push_str(") ");
+
+        return re;
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -138,6 +250,7 @@ pub enum LiteralKind {
     EnumFieldLiteral {
         field_name: String,
         literal: Box<LiteralKind>,
+        span: Span,
     },
 
     // Optional,
@@ -265,6 +378,7 @@ impl LiteralKind {
             LiteralKind::EnumFieldLiteral {
                 field_name: _field_name,
                 literal: _lit,
+                span: _,
             } => {
                 // let re = Literal::from_vec_literal(&[*literal.clone()]);
 
@@ -307,8 +421,8 @@ impl LiteralKind {
     }
 }
 
-impl LiteralKind {
-    pub fn to_cbml_code(&self) -> String {
+impl ToCbmlCode for LiteralKind {
+    fn to_cbml_code(&self, deepth: usize) -> String {
         match self {
             LiteralKind::String(s) => {
                 let mut re = String::new();
@@ -329,7 +443,7 @@ impl LiteralKind {
                 let mut re = String::new();
                 re.push_str("[");
                 for l in literals {
-                    re.push_str(&format!("{}, ", l.to_cbml_code()));
+                    re.push_str(&format!("{}, ", l.to_cbml_code(deepth)));
                 }
                 re.push_str("]");
                 return re;
@@ -337,26 +451,57 @@ impl LiteralKind {
             LiteralKind::Struct(asignment_stmts) => {
                 let mut re = String::new();
                 re.push_str("{");
-                for a in asignment_stmts {
-                    re.push_str(&format!(
-                        "{}: {}, ",
-                        a.field_name,
-                        a.value.kind.to_cbml_code()
-                    ));
+
+                {
+                    let newline_style: String = asignment_stmts
+                        .iter()
+                        .map(|x| x.to_cbml_code(deepth + 1)) // 每一个 stmt 转换为代码.
+                        .fold("\n".to_string(), |mut a, b| {
+                            a.push_str(&b);
+
+                            a.push('\n'); // 添加分隔符
+                            a
+                        });
+
+                    if newline_style.len() < 100 {
+                        let mut count = 0;
+                        let comma_style: String = asignment_stmts
+                            .iter()
+                            .map(|x| x.to_cbml_code(0)) // 每一个 stmt 转换为代码.
+                            .fold(" ".to_string(), |mut a, b| {
+                                a.push_str(&b);
+
+                                // 避免添加最后一个逗号.
+                                if count < asignment_stmts.len() - 1 {
+                                    a.push_str(", "); // 添加分隔符
+                                }
+                                count += 1;
+                                // a.push(','); // 添加分隔符
+                                a
+                            });
+
+                        re.push_str(&comma_style);
+                        re.push_str(" }");
+                    } else {
+                        re.push_str(&newline_style);
+                        re.push_str(&"    ".repeat(deepth));
+                        re.push_str("}");
+                    }
                 }
-                re.push_str("}");
+
                 return re;
             }
 
             LiteralKind::EnumFieldLiteral {
                 field_name: _field_name,
                 literal: _literal,
+                span: _,
             } => {
                 let mut re = String::new();
                 re.push_str(_field_name);
                 re.push('(');
 
-                re.push_str(&_literal.to_cbml_code());
+                re.push_str(&_literal.to_cbml_code(deepth));
 
                 re.push(')');
                 return re;
@@ -384,6 +529,16 @@ impl LiteralKind {
 pub struct TypeSignStmt {
     pub kind: TypeSignStmtKind,
     pub span: Span,
+}
+
+impl ToCbmlCode for TypeSignStmt {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+        re.push_str(&self.kind.to_cbml_code(deepth));
+        re.push_str("\n");
+
+        return re;
+    }
 }
 
 // TypeSignStmtKind
@@ -422,7 +577,7 @@ pub enum TypeSignStmtKind {
     Enum {
         enum_name: String,
         // field_type: Box<CbmlType>,
-        fields: Vec<EnumField>,
+        fields: Vec<EnumFieldDef>,
     },
 
     /// 用户自定义的且设置了名字的类型.
@@ -443,28 +598,26 @@ pub enum CbmlType {
     Enum { fields: Vec<(String, CbmlType)> },
 }
 
-impl TypeSignStmtKind {
-    pub fn to_cbml_code(&self) -> String {
+impl ToCbmlCode for TypeSignStmtKind {
+    fn to_cbml_code(&self, deepth: usize) -> String {
         match self {
             TypeSignStmtKind::String => format!("string"),
             TypeSignStmtKind::Number => format!("number"),
             TypeSignStmtKind::Boolean => format!("bool"),
             TypeSignStmtKind::Any => format!("any"),
             TypeSignStmtKind::Array { inner_type, .. } => {
-                format!("[{}]", inner_type.to_cbml_code())
+                format!("[{}]", inner_type.to_cbml_code(deepth + 1))
             }
             TypeSignStmtKind::Struct(struct_field_def_stmts) => {
-                let mut str = String::new();
-                str.push_str("{");
-                for s in struct_field_def_stmts {
-                    str.push_str(&format!(
-                        "{}: {}, ",
-                        s.field_name,
-                        s._type.kind.to_cbml_code()
-                    ));
-                }
-                str.push_str("}");
-                return str;
+                let mut re = String::new();
+                re.push_str("{\n");
+
+                re.push_str(&struct_field_def_stmts.to_cbml_code(deepth + 1));
+
+                re.push_str(&"    ".repeat(deepth));
+
+                re.push_str("}");
+                return re;
             }
             TypeSignStmtKind::Union {
                 base_type: _base_type,
@@ -476,16 +629,16 @@ impl TypeSignStmtKind {
                 alowd_values.iter().for_each(|x| {
                     counter += 1;
                     if counter < alowd_values.len() {
-                        str.push_str(&format!("{} | ", x.kind.to_cbml_code()));
+                        str.push_str(&format!("{} | ", x.kind.to_cbml_code(deepth)));
                     } else {
-                        str.push_str(&format!("{} ", x.kind.to_cbml_code()));
+                        str.push_str(&format!("{} ", x.kind.to_cbml_code(deepth)));
                     }
                 });
 
                 return str;
             }
             TypeSignStmtKind::Optional { inner_type } => {
-                format!("?{}", inner_type.to_cbml_code())
+                format!("?{}", inner_type.to_cbml_code(deepth))
             }
             TypeSignStmtKind::Enum {
                 enum_name: field_name,
@@ -497,7 +650,7 @@ impl TypeSignStmtKind {
                     str.push_str(&format!(
                         "{}( {} )\n ",
                         field.field_name,
-                        field._type.to_cbml_code()
+                        field._type.to_cbml_code(deepth)
                     ));
                 }
                 str.push_str(r"}");
@@ -506,30 +659,14 @@ impl TypeSignStmtKind {
             TypeSignStmtKind::Custom(name) => name.clone(),
         }
     }
+}
+impl TypeSignStmtKind {
     pub fn is_custom_ty(&self) -> bool {
         match self {
             TypeSignStmtKind::Custom(_) => true,
             _ => false,
         }
     }
-
-    // pub fn get_span(&self) -> &Span {
-    //     match self {
-    //         TypeSignStmtKind::String => todo!(),
-    //         TypeSignStmtKind::Number => todo!(),
-    //         TypeSignStmtKind::Boolean => todo!(),
-    //         TypeSignStmtKind::Any => todo!(),
-    //         TypeSignStmtKind::Array { span, .. } => span,
-    //         TypeSignStmtKind::Struct(struct_field_def_stmts) => todo!(),
-    //         TypeSignStmtKind::Union {
-    //             base_type,
-    //             alowd_values,
-    //         } => todo!(),
-    //         TypeSignStmtKind::Optional { inner_type, span } => span,
-    //         TypeSignStmtKind::Enum { enum_name, fields } => todo!(),
-    //         TypeSignStmtKind::Custom(_) => todo!(),
-    //     }
-    // }
 }
 
 #[derive(Debug, Clone)]
@@ -551,17 +688,47 @@ pub struct StructDef {
 
     pub doc: Option<DocumentStmt>,
 }
+impl ToCbmlCode for StructDef {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let _ = deepth;
+
+        let mut re = String::new();
+
+        re.push_str(&format!("struct {} {{\n", self.struct_name));
+
+        re.push_str(&self.fields.to_cbml_code(deepth + 1));
+
+        re.push_str("}");
+
+        return re;
+    }
+}
 
 /// 具名 enum
 #[derive(Debug, Clone)]
 pub struct EnumDef {
     pub enum_name: String,
 
-    pub fields: Vec<EnumField>,
+    pub fields: Vec<EnumFieldDef>,
 
     pub doc: Option<DocumentStmt>,
 
     pub name_span: Span,
+}
+impl ToCbmlCode for EnumDef {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+
+        re.push_str(&format!("enum {} ", self.enum_name));
+        re.push_str("{\n");
+        for field in &self.fields {
+            let a = field.to_cbml_code(deepth + 1);
+            re.push_str(&a);
+            re.push_str("\n");
+        }
+        re.push_str("}");
+        return re;
+    }
 }
 
 /// 具名 union
@@ -591,3 +758,82 @@ impl UnionDef {
         return duplicated;
     }
 }
+impl ToCbmlCode for UnionDef {
+    fn to_cbml_code(&self, deepth: usize) -> String {
+        let mut re = String::new();
+        re.push_str(&format!("union {} = ", self.union_name));
+
+        re.push_str("(");
+        re.push_str(&self.base_type.to_cbml_code(deepth));
+        re.push_str(")");
+        re.push_str(" = ");
+
+        for x in &self.allowed_values {
+            re.push_str(&x.kind.to_cbml_code(deepth));
+            re.push_str(" | ");
+        }
+
+        re.push_str("\n");
+        return re;
+    }
+}
+
+// code_file
+//      file_path
+//      source code
+//      tokens
+//      statments
+
+// project leverl symbol_table
+
+// typedef_file
+//      self_file
+
+// cbml_file
+//      self_file
+//      Option<typedef_file>
+
+//      symbol_table
+
+// #[test]
+// fn adsfdsaf() {
+//     let s = "let a = 'abcd'";
+//     let v = &s[8..=13];
+//     println!("{:?}", v);
+
+//     let kind = TokenKind::String("".into());
+//     let span = Span {
+//         start: Position {
+//             line: 0,
+//             column: 0,
+//             character_index: 8,
+//         },
+//         end: Position {
+//             line: 0,
+//             column: 0,
+//             character_index: 13,
+//         },
+//     };
+//     let tok = Token::new(kind, span);
+
+//     // tok.span.lookup(s);
+//     println!("{:?}", tok.span.lookup(s));
+// }
+
+// struct CodeFile<'a> {
+//     file_path: &'a String,
+//     source_code: String,
+//     tokens_: Vec<Box<HToken>>,
+// }
+
+// impl<'a> CodeFile<'a> {
+//     fn dsaf(&mut self) {
+
+//         // let a = self.source_code[0..=9];
+//     }
+// }
+
+// struct HToken {
+//     kind: TokenKind,
+//     span: Span,
+// }

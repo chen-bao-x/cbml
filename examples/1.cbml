@@ -1,35 +1,56 @@
+
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
- 
-package = {
-    name = "new"
-    version = "0.1.0"
-    edition = "15245"
-       
-}
 
+package = { edition = "15245", version = "0.1.0", name = "new" }
 
-dependencies = [
-  ssh( { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" }),
-    version( { name = "colored", varsion = "3.0.0", })
-]
- 
+dependencies = [ssh({
+    name = "chenbao_cmd"
+    git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
+    branch = "master"
+}), version({ name = "colored", varsion = "3.0.0" }), ]
 
+enum_1 = ssh({
+    name = "chenbao_cmd"
+    git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
+    branch = "master"
+})
 
-/*
-asdfadsf
-sdaf
-asd
-f
-adsf
-*/   
+enum_2 = ssh({
+    name = "chenbao_cmd"
+    git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
+    branch = "master"
+})
 
-enum_1=  ssh(  { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" })
+name = default
 
-enum_2 =  ssh(  { name = "chenbao_cmd", git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git", branch = "master" })
-
-
-
-name = default 
 age = none
 
+opt = 23
 
+haha = { name = "hello", age = 99 }
+
+tree = {
+    name = " string "
+    age = 99
+    obj = {
+        name = " string "
+        age = 99
+        obj = {
+            name = " string "
+            age = 99
+            obj = {
+                name = " string "
+                age = 99
+                obj = {
+                    name = " string "
+                    age = 99
+                    obj = {
+                        name = " string "
+                        age = 99
+                        obj = { name = " string ", age = 99 }
+                    }
+                }
+            }
+        }
+    }
+}

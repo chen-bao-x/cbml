@@ -1,7 +1,22 @@
+use lexer::token::Token;
+
 pub mod lexer;
 pub mod parser;
 pub mod typecheck;
 pub mod value;
+
+pub trait ToCbmlCode {
+    fn to_cbml_code(&self, deepth: usize) -> String;
+}
+/// 缩进的空壳数量生成,
+/// sadfadsf("abcd", 4) -> "abcdabcdabcdabcd"
+pub fn indent(str: &str, deepth: usize) -> String {
+    let mut re = String::new();
+    for _ in 0..deepth {
+        re.push_str(str);
+    }
+    return re;
+}
 
 // fn main() {
 //     tests::test_parser();
@@ -10,12 +25,12 @@ pub mod value;
 // 在编写时的 错误检查
 // language server
 
-fn cheack_file() {
-    fn cheack_typedef() {}
-}
+// fn cheack_file() {
+//     fn cheack_typedef() {}
+// }
 
 // 解析 cbml 文件到 编程语言自己的类型 T
-fn parse<T>() {}
+// fn parse<T>() {}
 
 // language server
 // lib
@@ -87,8 +102,6 @@ mod tests {
         dsafdasfsadf(path, &code);
     }
 
-  
-
     fn dsafdasfsadf(path: &str, code: &str) {
         use crate::parser::cbml_parser::CbmlParser;
 
@@ -147,4 +160,15 @@ where
     {
         println!("{}", s.to_string());
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CodeFile {
+    /// 当前文件的 path.
+    pub file_path: String,
+    pub text: String,
+    pub tokens: Vec<Token>,
+    pub ast: Vec<parser::StmtKind>,
+
+    pub is_parsed: bool,
 }

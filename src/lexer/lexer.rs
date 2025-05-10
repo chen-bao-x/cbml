@@ -209,7 +209,6 @@ impl Lexer {
                             self.advance(); // eat this character
 
                             self.state = State::InString;
-                            
                         }
                         '/' => {
                             self.state = State::InLineComment;
@@ -834,7 +833,7 @@ impl Lexer {
 
 impl Lexer {
     fn get_current_position(&self) -> Position {
-        Position::new(self.line, self.column, self.position)
+        Position::new(self.line as u32, self.column as u32, self.position)
     }
 
     fn get_pos(&mut self) -> Span {
