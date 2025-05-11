@@ -1,5 +1,5 @@
-use "/Users/chenbao/Documents/GitHub/cbml/examples/8_union_def.cbml"
-
+use "/Users/chenbao/GitHub/cbml/examples/8_union.def.cbml"
+ 
 
 a = 1
 
@@ -16,3 +16,7 @@ e=  2
 
 
 g = "0"
+person = { 
+    name = "hello"
+    age = 2
+}

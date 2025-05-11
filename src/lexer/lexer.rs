@@ -49,12 +49,20 @@ impl Lexer {
         self.current.push(ch);
 
         let re = self.advance();
-        if let None = re {
-            panic!("adsfasdfsadfsafd");
-        }
+        match re {
+            Some(_) => {}
+            None => {
+                panic!("adsfasdfsadfsafd");
+            }
+        };
     }
 
     fn advance(&mut self) -> Option<char> {
+        // println!(
+        //     "self.advance pos: {}, line: {}, colunm:{}, state: {:?}",
+        //     self.position, self.line, self.column, self.state
+        // );
+
         if let Some(ch) = self.input.get(self.position) {
             self.position += 1;
             if *ch == '\n' {
@@ -212,10 +220,12 @@ impl Lexer {
                             self.state = State::InString;
                         }
                         '/' => {
-                            self.state = State::InLineComment;
                             self.current.clear();
+                            self.mark_start_pos();
 
                             self.push_and_advance(ch);
+
+                            self.state = State::InLineComment;
                         }
 
                         '0'..='9' => {
@@ -485,7 +495,7 @@ impl Lexer {
                             //         'u' => {
                             //             // Unicode 转义 "\u{1F600}"
 
-                            //             self.advance(); // 
+                            //             self.advance(); //
 
                             //             let mut unicode = String::new();
                             //             if let Some(next_ch) = self.peek() {
@@ -606,7 +616,9 @@ impl Lexer {
                         '\n' => {
                             // 结束注释
 
-                            self.mark_start_pos();
+                            self.push_and_advance(ch);
+                            self.mark_end_pos();
+
                             let loc = self.get_pos();
 
                             tokens.push(Token::new(
@@ -644,15 +656,20 @@ impl Lexer {
                     }
                 }
                 State::InDocComment => {
+                    // println!("InDocComment {:?}  self.current: {:?}", ch, self.current);
+
                     match ch {
                         '\n' => {
                             // 结束注释
 
-                            self.mark_start_pos();
+                            self.push_and_advance(ch);
+                            self.mark_end_pos();
+
                             let loc = self.get_pos();
 
                             tokens.push(Token::new(
-                                tk::DocComment(std::mem::take(&mut self.current)),
+                                // tk::DocComment(std::mem::take(&mut self.current)),
+                                tk::DocComment(self.current.clone()),
                                 loc,
                             ));
 
@@ -671,11 +688,15 @@ impl Lexer {
                             if let Some(next_ch) = self.peek() {
                                 if next_ch == '/' {
                                     // 结束注释
-                                    self.advance();
+                                    // self.advance();
 
                                     self.push_and_advance('/');
+                                    // let sadf = self.peek();
 
-                                    self.mark_start_pos();
+                                    // println!("{:?}", sadf);
+                                    // todo!();
+
+                                    self.mark_end_pos();
                                     let loc = self.get_pos();
 
                                     tokens.push(Token::new(
@@ -820,7 +841,10 @@ impl Lexer {
                             loc,
                         ));
                     }
-                    // State::Initial => todo!(),
+                    State::Initial => {
+                        #[cfg(debug_assertions)]
+                        todo!();
+                    }
                     State::InString => {
                         // string ends.
                         // self.push(ch);
@@ -841,12 +865,33 @@ impl Lexer {
                         self.state = State::Initial;
                         self.current.clear();
                     }
-                    // State::InDocComment => todo!(),
-                    // State::InBlockComment => todo!(),
-                    _ => {
-                        dp(format!("{:?}", self.state.clone()));
-                        dp(format!("{:?}", &self.current));
-                        todo!();
+                    State::InDocComment => {
+                        self.mark_end_pos();
+
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(
+                            // tk::DocComment(std::mem::take(&mut self.current)),
+                            tk::DocComment(self.current.clone()),
+                            loc,
+                        ));
+
+                        self.state = State::Initial;
+                        self.current.clear();
+                    }
+                    State::InBlockComment => {
+                        // 结束注释
+
+                        self.mark_end_pos();
+                        let loc = self.get_pos();
+
+                        tokens.push(Token::new(
+                            tk::BlockComment(std::mem::take(&mut self.current)),
+                            loc,
+                        ));
+
+                        self.state = State::Initial;
+                        self.current.clear();
                     }
                 }
             }

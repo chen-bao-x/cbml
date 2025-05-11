@@ -1,3 +1,5 @@
+use std::{convert::Infallible, hint::unreachable_unchecked};
+
 use lexer::token::Token;
 
 pub mod lexer;
@@ -52,12 +54,14 @@ fn timeit(count: usize, f: fn()) {
 #[cfg(test)]
 mod tests {
 
-    use crate::{dp, lexer::tokenizer, typecheck::typecheck};
+    use crate::{dp, lexer::tokenizer, timeit, typecheck::typecheck};
 
     #[test]
     pub fn test_parser() {
         // /Users/chenbao/GitHub/cbml/examples/1.cmml
-        asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
+        timeit(1000, || {
+            asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
+        });
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.def.cbml");
 

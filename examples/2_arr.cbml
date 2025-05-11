@@ -1,8 +1,6 @@
 use "/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.typedef.cbml"
 // line comment 
-
-/// doc comment 
-
+ 
 /* block 
 comment
 */
@@ -37,7 +35,7 @@ arr_7 = [1
 ,2,
 
 3
-
+ 
 ,
 
 4

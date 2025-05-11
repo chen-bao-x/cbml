@@ -363,7 +363,6 @@ impl TypeChecker {
                     };
                 }
             }
-
             StmtKind::TypeAliasStmt(s) => {
                 // 如果使用了 Custom 类型, 这个类型是否存在.
                 if self.push_type_def(s.name.clone(), s.ty.clone()) {
@@ -573,7 +572,7 @@ impl TypeChecker {
                             self.file_path.clone(),
                             x.span.clone(),
                             &union_def.base_type.to_cbml_code(0),
-                            &x.kind.to_cbml_code(0),
+                            &format!("{}", &x.kind.to_cbml_code(0)),
                         );
                         result.push(e);
                     }
@@ -642,7 +641,6 @@ impl TypeChecker {
                     };
                 }
             }
-
             StmtKind::Use(_url) => {
                 let use_path = _url.get_converted_string();
                 self.use_path = Some(use_path.clone());
@@ -829,6 +827,7 @@ impl TypeChecker {
             StmtKind::LineComment(_) => {}
             StmtKind::BlockComment(_) => {}
             StmtKind::DocComment(_) => {}
+            StmtKind::EmptyLine => todo!(),
         }
         if result.is_empty() {
             return None;

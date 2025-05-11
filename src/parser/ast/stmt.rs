@@ -25,7 +25,17 @@ pub enum StmtKind {
 
     LineComment(String),
     BlockComment(String),
-    DocComment(String),
+    // DocComment(String),
+    DocComment(CommentStmt),
+
+    /// 空行,
+    EmptyLine,
+}
+
+fn asdfsadf(val: u8) {
+    if let 0 = val {}
+
+    if 0 == val {}
 }
 
 impl StmtKind {
@@ -38,9 +48,10 @@ impl StmtKind {
             StmtKind::StructDefStmt(struct_def) => struct_def.name_span,
             StmtKind::EnumDef(enum_def) => enum_def.name_span,
             StmtKind::UnionDef(union_def) => union_def.name_span,
-            StmtKind::LineComment(_) => todo!(),
+            StmtKind::LineComment(l) => todo!(),
             StmtKind::BlockComment(_) => todo!(),
-            StmtKind::DocComment(_) => todo!(),
+            StmtKind::DocComment(d) => d.span,
+            StmtKind::EmptyLine => todo!(),
         }
     }
 }
@@ -50,12 +61,33 @@ impl ToCbmlCode for Vec<StmtKind> {
         let mut re = String::new();
 
         for x in self {
-            // top level field 间隔一行更好看.
-            if deepth == 0 {
-                re.push_str("\n");
-            }
+            match &x {
+                StmtKind::LineComment(_) => {
+                    re.push_str("\n");
+                }
+                StmtKind::DocComment(_) => {
+                    re.push_str("\n");
+                }
+                _ => {
+                    // top level field 间隔一行更好看.
+                    // if deepth == 0 {
+                    //     re.push_str("\n");
+                    // }
+                }
+            };
+
             re.push_str(&x.to_cbml_code(deepth));
-            re.push('\n');
+
+            match &x {
+                StmtKind::LineComment(_) => {}
+                StmtKind::DocComment(_) => {}
+                _ => {
+                    // top level field 间隔一行更好看.
+                    if deepth == 0 {
+                        re.push_str("\n");
+                    }
+                }
+            };
         }
 
         return re;
@@ -73,9 +105,10 @@ impl ToCbmlCode for StmtKind {
             StmtKind::StructDefStmt(struct_def) => struct_def.to_cbml_code(deepth),
             StmtKind::EnumDef(enum_def) => enum_def.to_cbml_code(deepth),
             StmtKind::UnionDef(union_def) => union_def.to_cbml_code(deepth),
-            StmtKind::LineComment(s) => format!("// {}", s),
-            StmtKind::BlockComment(s) => format!("/* {} */", s),
-            StmtKind::DocComment(s) => format!("/// {}", s),
+            StmtKind::LineComment(s) => format!("{}", s),
+            StmtKind::BlockComment(s) => format!("{}", s),
+            StmtKind::DocComment(s) => format!("{}", s.document),
+            StmtKind::EmptyLine => "\n".to_string(),
         }
     }
 }
@@ -95,12 +128,9 @@ impl UseStmt {
         }
 
         let len = self.url.len();
-        let start = 1; // 去掉开头的 "
-        let end = len - 1; // 去掉结尾的 "
+        let start = 1; // 去掉开头的 双引号
+        let end = len - 1; // 去掉结尾的 双引号
 
-        // self.url.trim_start_matches(pat)
-
-        // return self.url[1..len - 1].to_string();
         return self.url[start..end].to_string();
     }
 }
@@ -153,7 +183,7 @@ impl ToCbmlCode for UseStmt {
 pub struct TypeAliasStmt {
     pub name: String,
     pub ty: TypeSignStmt,
-    pub doc: Option<DocumentStmt>,
+    pub doc: Option<CommentStmt>,
 
     pub name_span: Span,
 }
@@ -204,7 +234,7 @@ pub struct StructFieldDefStmt {
     // pub default: Option<LiteralKind>,
     pub default: Option<Literal>,
 
-    pub doc: Option<DocumentStmt>,
+    pub doc: Option<CommentStmt>,
 
     pub field_name_span: Span,
 }
@@ -250,7 +280,7 @@ impl ToCbmlCode for StructFieldDefStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DocumentStmt {
+pub struct CommentStmt {
     pub document: String,
     pub span: Span,
 }
@@ -470,6 +500,24 @@ impl LiteralKind {
 
         return None;
     }
+
+    // pub fn to_type_sign(&self) -> String {
+    //     match self {
+    //         LiteralKind::String(_) => "string".to_string(),
+    //         LiteralKind::Number(_) => "number".to_string(),
+    //         LiteralKind::Boolean(_) => "bool".to_string(),
+    //         LiteralKind::Array(literal_kinds) => &self.to_cbml_code(0),
+    //         LiteralKind::Struct(asignment_stmts) => todo!(),
+    //         LiteralKind::EnumFieldLiteral {
+    //             field_name,
+    //             literal,
+    //             span,
+    //         } => todo!(),
+    //         LiteralKind::LiteralNone => todo!(),
+    //         LiteralKind::Todo => todo!(),
+    //         LiteralKind::Default => todo!(),
+    //     }
+    // }
 }
 
 impl ToCbmlCode for LiteralKind {
@@ -493,10 +541,28 @@ impl ToCbmlCode for LiteralKind {
             LiteralKind::Array(literals) => {
                 let mut re = String::new();
                 re.push_str("[");
+
                 for l in literals {
                     re.push_str(&format!("{}, ", l.to_cbml_code(deepth)));
                 }
+
                 re.push_str("]");
+
+                if re.contains("\n") {
+                    re.clear();
+
+                    re.push_str("[\n");
+
+                    for l in literals {
+                        re.push_str(&format!(
+                            "{}{},\n",
+                            "    ".repeat(deepth + 1),
+                            l.to_cbml_code(deepth + 1)
+                        ));
+                    }
+
+                    re.push_str("]");
+                }
                 return re;
             }
             LiteralKind::Struct(asignment_stmts) => {
@@ -514,30 +580,35 @@ impl ToCbmlCode for LiteralKind {
                             a
                         });
 
-                    if newline_style.len() < 100 {
-                        let mut count = 0;
-                        let comma_style: String = asignment_stmts
-                            .iter()
-                            .map(|x| x.to_cbml_code(0)) // 每一个 stmt 转换为代码.
-                            .fold(" ".to_string(), |mut a, b| {
-                                a.push_str(&b);
+                    // {
+                    //     if newline_style.len() < 100 && deepth == 0 {
+                    //         let mut count = 0;
+                    //         let comma_style: String = asignment_stmts
+                    //             .iter()
+                    //             .map(|x| x.to_cbml_code(0)) // 每一个 stmt 转换为代码.
+                    //             .fold(" ".to_string(), |mut a, b| {
+                    //                 a.push_str(&b);
 
-                                // 避免添加最后一个逗号.
-                                if count < asignment_stmts.len() - 1 {
-                                    a.push_str(", "); // 添加分隔符
-                                }
-                                count += 1;
-                                // a.push(','); // 添加分隔符
-                                a
-                            });
+                    //                 // 避免添加最后一个逗号.
+                    //                 if count < asignment_stmts.len() - 1 {
+                    //                     a.push_str(", "); // 添加分隔符
+                    //                 }
+                    //                 count += 1;
+                    //                 // a.push(','); // 添加分隔符
+                    //                 a
+                    //             });
 
-                        re.push_str(&comma_style);
-                        re.push_str(" }");
-                    } else {
-                        re.push_str(&newline_style);
-                        re.push_str(&"    ".repeat(deepth));
-                        re.push_str("}");
-                    }
+                    //         re.push_str(&comma_style);
+                    //         re.push_str(" }");
+                    //     } else {
+                    //         re.push_str(&newline_style);
+                    //         re.push_str(&"    ".repeat(deepth));
+                    //         re.push_str("}");
+                    //     }
+                    // }
+                    re.push_str(&newline_style);
+                    re.push_str(&"    ".repeat(deepth));
+                    re.push_str("}");
                 }
 
                 return re;
@@ -737,7 +808,7 @@ pub struct StructDef {
 
     pub name_span: Span,
 
-    pub doc: Option<DocumentStmt>,
+    pub doc: Option<CommentStmt>,
 }
 impl ToCbmlCode for StructDef {
     fn to_cbml_code(&self, deepth: usize) -> String {
@@ -762,7 +833,7 @@ pub struct EnumDef {
 
     pub fields: Vec<EnumFieldDef>,
 
-    pub doc: Option<DocumentStmt>,
+    pub doc: Option<CommentStmt>,
 
     pub name_span: Span,
 }
@@ -789,7 +860,7 @@ pub struct UnionDef {
     pub base_type: TypeSignStmtKind,
     // pub allowed_values: Vec<LiteralKind>, // 1 | 2 | 3
     pub allowed_values: Vec<Literal>, // 1 | 2 | 3
-    pub doc: Option<DocumentStmt>,
+    pub doc: Option<CommentStmt>,
     pub name_span: Span,
 }
 
@@ -828,63 +899,3 @@ impl ToCbmlCode for UnionDef {
         return re;
     }
 }
-
-// code_file
-//      file_path
-//      source code
-//      tokens
-//      statments
-
-// project leverl symbol_table
-
-// typedef_file
-//      self_file
-
-// cbml_file
-//      self_file
-//      Option<typedef_file>
-
-//      symbol_table
-
-// #[test]
-// fn adsfdsaf() {
-//     let s = "let a = 'abcd'";
-//     let v = &s[8..=13];
-//     println!("{:?}", v);
-
-//     let kind = TokenKind::String("".into());
-//     let span = Span {
-//         start: Position {
-//             line: 0,
-//             column: 0,
-//             character_index: 8,
-//         },
-//         end: Position {
-//             line: 0,
-//             column: 0,
-//             character_index: 13,
-//         },
-//     };
-//     let tok = Token::new(kind, span);
-
-//     // tok.span.lookup(s);
-//     println!("{:?}", tok.span.lookup(s));
-// }
-
-// struct CodeFile<'a> {
-//     file_path: &'a String,
-//     source_code: String,
-//     tokens_: Vec<Box<HToken>>,
-// }
-
-// impl<'a> CodeFile<'a> {
-//     fn dsaf(&mut self) {
-
-//         // let a = self.source_code[0..=9];
-//     }
-// }
-
-// struct HToken {
-//     kind: TokenKind,
-//     span: Span,
-// }

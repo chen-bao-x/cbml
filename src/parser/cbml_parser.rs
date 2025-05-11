@@ -1,7 +1,8 @@
 use super::{
     ParserError,
     ast::stmt::{
-        AsignmentStmt, DocumentStmt, Literal, LiteralKind, StmtKind, StructDef, StructFieldDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
+        AsignmentStmt, CommentStmt, Literal, LiteralKind, StmtKind, StructDef, StructFieldDefStmt,
+        TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
     },
 };
 use crate::{
@@ -46,23 +47,30 @@ impl<'a> CbmlParser<'a> {
         let mut statements = Vec::new();
         let mut errors = Vec::new();
 
+        let mut mark_pos = self.current_position; // 标记当前的位置.
+        _ = mark_pos;
+
         while !self.is_at_end() {
             // dp(format!("parse(&mut self) current: {:?}", self.peek()));
+            // println!("statements.len(): {}", statements.len());
 
             _ = self.eat_zeor_or_multy(tk::NewLine);
 
-            let re = self.parse_statement();
-            match re {
+            mark_pos = self.current_position;
+            let parse_result = self.parse_statement();
+
+            match parse_result {
                 Ok(s) => {
                     statements.push(s);
+                    if self.current_position == mark_pos {
+                        panic!("解析出了一个 stmt 却没有消耗任何 token.\n这个错误会导致无限循环...")
+                    }
                 }
                 Err(e) => {
                     errors.push(e);
                     self.current_position += 1; // 移动到下一个 Token
-                    return Err(errors);
-                    // println!("{:?}", e);
 
-                    // panic!();
+                    return Err(errors);
                 }
             }
             _ = self.eat_zeor_or_multy(tk::NewLine);
@@ -124,29 +132,10 @@ impl<'a> CbmlParser<'a> {
                 self.consume(tk::BlockComment("".into()))?;
                 Ok(StmtKind::BlockComment(s))
             }
-            tk::DocComment(s) => {
-                // self.consume(tk::DocComment("".into()))?;
+            tk::DocComment(_) => {
+                let doc = self.parse_document()?;
 
-                // todo!();
-
-                // let doc = self.parse_document();
-                // let asdf = self.parse_asignment()?;
-                // match asdf {
-                //     StmtKind::Use(use_stmt) => todo!(),
-                //     StmtKind::Asignment(asignment_stmt) => todo!(),
-                //     StmtKind::FileFieldStmt(mut struct_field_def_stmt) => {
-                //         struct_field_def_stmt.doc = doc;
-                //     }
-                //     StmtKind::TypeAliasStmt(type_alias_stmt) => todo!(),
-                //     StmtKind::StructDefStmt(struct_def) => todo!(),
-                //     StmtKind::EnumDef(enum_def) => todo!(),
-                //     StmtKind::UnionDef(union_def) => todo!(),
-                //     StmtKind::LineComment(_) => todo!(),
-                //     StmtKind::BlockComment(_) => todo!(),
-                //     StmtKind::DocComment(_) => todo!(),
-                // }
-
-                return Ok(StmtKind::DocComment(s));
+                return Ok(StmtKind::DocComment(doc));
             }
 
             _ => {
@@ -554,9 +543,10 @@ impl<'a> CbmlParser<'a> {
                 });
             }
             tk::LBracket => {
+                // 数组字面量
+
                 // LBracket literal element{0,} coma{0,1} RBracket
                 // element = Coma literal
-                // 数组字面量
 
                 let arr = self.parse_array_literal()?;
                 return Ok(Literal {
@@ -591,7 +581,6 @@ impl<'a> CbmlParser<'a> {
                     match tok.kind.clone() {
                         tk::RBrace => {
                             // 结构体结束
-
                             break;
                         }
 
@@ -690,7 +679,7 @@ impl<'a> CbmlParser<'a> {
 
             // dp(format!("parse_asignment(&mut self) value: {:?}", value));
 
-            self.consume_stmt_end_token()?;
+            // self.consume_stmt_end_token()?;
 
             return Ok(StmtKind::Asignment(AsignmentStmt {
                 field_name: name,
@@ -733,7 +722,10 @@ impl<'a> CbmlParser<'a> {
         // struct_field_def = identifier Colon type_sign default_value{0,1}
         // default_value = default literal
 
-        let doc = self.parse_document();
+        let doc = match self.parse_document() {
+            Ok(d) => Some(d),
+            Err(_) => None,
+        };
 
         // 解析字段定义
         let name_tok = self.consume(tk::Identifier("".into()))?.clone();
@@ -759,7 +751,7 @@ impl<'a> CbmlParser<'a> {
                 _type: type_sign,
                 default: default_value,
                 field_name_span: name_tok.span,
-                doc,
+                doc: doc,
             });
         } else {
             dp(format!(
@@ -775,30 +767,29 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
-    fn parse_document(&mut self) -> Option<DocumentStmt> {
-        let re = self.consume(tk::DocComment("".into()));
-        match re {
-            Ok(doc_tok) => {
-                if let tk::DocComment(s) = doc_tok.kind.clone() {
-                    return Some(DocumentStmt {
-                        document: s,
-                        span: doc_tok.span.clone(),
-                    });
-                }
-            }
-            Err(_) => {}
-        }
+    // fn parse_document(&mut self) -> Option<DocumentStmt> {
+    fn parse_document(&mut self) -> Result<CommentStmt, ParserError> {
+        let doc_tok = self.consume(tk::DocComment("".into()))?;
 
-        // todo!("逻辑上不可能出现的错误.");
+        let tk::DocComment(s) = doc_tok.kind.clone() else {
+            unreachable!("逻辑上不可能出现的错误");
+        };
 
-        return None;
+        return Ok(CommentStmt {
+            document: s,
+            span: doc_tok.span.clone(),
+        });
     }
 
     /// 解析使用 struct name { } 这种方式定义的结构体.
     fn parse_struct_def(&mut self) -> Result<StmtKind, ParserError> {
         // 解析结构体定义
 
-        let doc = self.parse_document();
+        // let doc = self.parse_document()?;
+        let doc = match self.parse_document() {
+            Ok(d) => Some(d),
+            Err(_) => None,
+        };
 
         self.consume(tk::Struct)?;
 
@@ -933,7 +924,11 @@ impl<'a> CbmlParser<'a> {
 
         // dp(format!("parse_enum_def(&mut self)"));
 
-        let doc = self.parse_document();
+        // let doc = self.parse_document()?;
+        let doc = match self.parse_document() {
+            Ok(d) => Some(d),
+            Err(_) => None,
+        };
 
         self.consume(tk::Enum)?; // enum
 
@@ -984,7 +979,7 @@ impl<'a> CbmlParser<'a> {
             let enum_type = EnumDef {
                 enum_name,
                 fields,
-                doc,
+                doc: doc,
                 name_span: enum_name_tok.span,
             };
             return Ok(StmtKind::EnumDef(enum_type));
@@ -1001,8 +996,11 @@ impl<'a> CbmlParser<'a> {
         // union LParent typesign RParent identifier Assignment union_field{1,}
         // union_field = pipe{1} literal
 
-        let doc = self.parse_document();
-
+        // let doc = self.parse_document()?;
+        let doc = match self.parse_document() {
+            Ok(d) => Some(d),
+            Err(_) => None,
+        };
         // 解析联合体定义
         self.consume(tk::Union)?; // union
 
@@ -1052,7 +1050,7 @@ impl<'a> CbmlParser<'a> {
             union_name,
             base_type,
             allowed_values: alowd_values,
-            doc,
+            doc: doc,
             name_span: name_tok.span,
         }));
     }
@@ -1103,9 +1101,9 @@ impl<'a> CbmlParser<'a> {
                 field_name: name,
                 literal: lit.kind.into(),
                 span: name_tok.span, // span: Span {
-                                //     start: l_tok.span.start,
-                                //     end: r_tok.span.end,
-                                // },
+                                     //     start: l_tok.span.start,
+                                     //     end: r_tok.span.end,
+                                     // },
             });
         } else {
             panic!("这是逻辑上不可能出现的错误.");
