@@ -644,74 +644,78 @@ impl TypeChecker {
             }
 
             StmtKind::Use(_url) => {
-                self.use_path = Some(_url.url.clone());
+                let use_path = _url.get_converted_string();
+                self.use_path = Some(use_path.clone());
 
                 // error: 在 use 语句之前有 赋值语句.
-                if !self.asignments.is_empty() {
-                    let e = ParserError {
-                        file_path: self.file_path.clone(),
-                        msg: format!("`use` 只能在文件的最开头."),
-                        code_location: _url.keyword_span.clone(),
-                        note: None,
-                        help: Some(format!("尝试将 `use` 移动到第一行")),
-                    };
-                    result.push(e);
-                }
-
-                // error: 重复的 use 语句, use 语句只能使用一次.
-                // if self.is_def_file_loaded.is_loaded() {
-                if self.is_def_file_loaded.is_ok() {
-                    let e = ParserError::err_use_can_only_def_onece(
-                        self.file_path.clone(),
-                        _url.url_span.clone(),
-                    );
-                    result.push(e);
-                } else {
-                    self.is_def_file_loaded = IsDefFileLoaded::ParsedOk;
-                }
-
-                // 如果是文件 url 则读取文件
-                // 如果是网络 url 则下载这个文件.
-                let re = std::fs::read_to_string(&_url.url);
-
-                match re {
-                    Ok(code) => {
-                        // println!("{code}");
-                        let asdf = self.read_type_def_file(&_url.url, &code);
-
-                        if let Some(mut err) = asdf {
-                            let asadsfdf = ParserError {
-                                file_path: self.file_path.clone(),
-                                msg: format!(
-                                    "引用的 类型定义文件 中有 {} 个错误: \n{}",
-                                    err.len(),
-                                    &_url.url
-                                ),
-                                code_location: _url.keyword_span.clone(),
-                                note: None,
-                                help: None,
-                            };
-
-                            err.push(asadsfdf);
-
-                            return Some(err);
-                        }
-                    }
-                    Err(e) => {
-                        let err = ParserError::err_cannot_open_file(
-                            self.file_path.clone(),
-                            &_url.url,
-                            _url.url_span.clone(),
-                            e,
-                        );
-
-                        return Some(vec![err]);
-
-                        // eprintln!("error: {:?}", e);
-                        // println!("{}", self.file_path);
-                        // panic!();
+                {
+                    if !self.asignments.is_empty() {
+                        let e = ParserError {
+                            file_path: self.file_path.clone(),
+                            msg: format!("`use` 只能在文件的最开头."),
+                            code_location: _url.keyword_span.clone(),
+                            note: None,
+                            help: Some(format!("尝试将 `use` 移动到第一行")),
+                        };
+                        result.push(e);
                     }
                 };
+
+                // error: 重复的 use 语句, use 语句只能使用一次.
+                {
+                    if self.is_def_file_loaded.is_ok() {
+                        let e = ParserError::err_use_can_only_def_onece(
+                            self.file_path.clone(),
+                            _url.url_span.clone(),
+                        );
+                        result.push(e);
+                    } else {
+                        self.is_def_file_loaded = IsDefFileLoaded::ParsedOk;
+                    }
+                };
+
+                // 读取 类型定义文件.
+                {
+                    // TODO:
+                    // 如果是文件 url 则读取文件
+                    // 如果是网络 url 则下载这个文件.
+                    let re = std::fs::read_to_string(&use_path.clone());
+
+                    match re {
+                        Ok(code) => {
+                            // println!("{code}");
+                            let re = self.read_type_def_file(&use_path, &code);
+
+                            if let Some(mut err) = re {
+                                let asadsfdf = ParserError {
+                                    file_path: self.file_path.clone(),
+                                    msg: format!(
+                                        "引用的 类型定义文件 中有 {} 个错误: \n{}",
+                                        err.len(),
+                                        &_url.url
+                                    ),
+                                    code_location: _url.keyword_span.clone(),
+                                    note: None,
+                                    help: None,
+                                };
+
+                                err.push(asadsfdf);
+
+                                return Some(err);
+                            }
+                        }
+                        Err(e) => {
+                            let err = ParserError::err_cannot_open_file(
+                                self.file_path.clone(),
+                                &_url.url,
+                                _url.url_span.clone(),
+                                e,
+                            );
+
+                            return Some(vec![err]);
+                        }
+                    };
+                }
             }
             StmtKind::Asignment(asign) => {
                 // 检查 field_name 在 typedef 文件中是否存在.
@@ -852,6 +856,30 @@ impl TypeChecker {
         code: &str,
     ) -> Option<Vec<ParserError>> {
         use crate::parser::cbml_parser::CbmlParser;
+
+        if !def_file_path.ends_with(".def.cbml") {
+            let e = ParserError {
+                file_path: self.file_path.clone(),
+                msg: format!("类型定义文件的文件名需要以 .def.cbml 结尾"),
+                code_location: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            return Some(vec![e]);
+        }
+
+        if def_file_path == self.file_path {
+            let e = ParserError {
+                file_path: self.file_path.clone(),
+                msg: format!("类型定义文件中不能使用 use 语句."),
+                code_location: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            return Some(vec![e]);
+        }
 
         // let tokens = tokenizer(def_file_path, &code);
         let re = tokenizer(def_file_path, &code);

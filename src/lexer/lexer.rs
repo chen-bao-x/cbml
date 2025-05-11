@@ -45,10 +45,13 @@ impl Lexer {
         }
     }
 
-    fn push(&mut self, ch: char) {
+    fn push_and_advance(&mut self, ch: char) {
         self.current.push(ch);
 
-        self.advance().unwrap();
+        let re = self.advance();
+        if let None = re {
+            panic!("adsfasdfsadfsafd");
+        }
     }
 
     fn advance(&mut self) -> Option<char> {
@@ -204,9 +207,7 @@ impl Lexer {
                             self.current.clear();
 
                             self.mark_start_pos();
-
-                            // self.push(ch);
-                            self.advance(); // eat this character
+                            self.push_and_advance(ch);
 
                             self.state = State::InString;
                         }
@@ -214,24 +215,26 @@ impl Lexer {
                             self.state = State::InLineComment;
                             self.current.clear();
 
-                            self.push(ch);
+                            self.push_and_advance(ch);
                         }
 
                         '0'..='9' => {
                             self.state = State::InNumber;
                             self.current.clear();
 
-                            self.push(ch);
+                            self.mark_start_pos();
+                            self.push_and_advance(ch);
                         }
                         '+' => {
                             // 正数
-
-                            self.push(ch);
+                            self.mark_start_pos();
+                            self.push_and_advance(ch);
                             self.state = State::InNumber;
                         }
                         '-' => {
                             // 负数
-                            self.push(ch);
+                            self.mark_start_pos();
+                            self.push_and_advance(ch);
                             self.state = State::InNumber;
                         }
 
@@ -240,13 +243,14 @@ impl Lexer {
                             self.current.clear();
 
                             self.mark_start_pos();
-                            self.push(ch);
+                            self.push_and_advance(ch);
                             self.state = State::InIdentifier;
                         }
                         // 处理无效字符
                         x => {
                             self.mark_start_pos();
                             self.advance(); // eat this character
+                            self.mark_end_pos();
 
                             let loc = self.get_pos();
 
@@ -266,7 +270,7 @@ impl Lexer {
                 }
                 State::InIdentifier => match ch {
                     x if x.is_alphanumeric() || x == '_' => {
-                        self.push(ch);
+                        self.push_and_advance(ch);
                     }
 
                     _ => {
@@ -285,7 +289,7 @@ impl Lexer {
                 State::BinarayNumber => {
                     match ch {
                         '0' | '1' => {
-                            self.push(ch);
+                            self.push_and_advance(ch);
                         }
                         _ => {
                             let 是负数吗: bool = {
@@ -334,7 +338,7 @@ impl Lexer {
                 }
                 State::HexNumber => match ch {
                     '0'..='9' | 'a'..='f' | 'A'..='F' => {
-                        self.push(ch);
+                        self.push_and_advance(ch);
                     }
                     _ => {
                         // dp(format!("hex {:?}", self.current));
@@ -383,7 +387,7 @@ impl Lexer {
                 State::InNumber => {
                     match ch {
                         '0'..='9' => {
-                            self.push(ch);
+                            self.push_and_advance(ch);
                         }
                         '.' => {
                             match self.current.find(|x| x == '.') {
@@ -393,22 +397,22 @@ impl Lexer {
                                         file_path: self.file_path.clone(),
                                         msg: format!("无效的数字格式 {:?}", self.current),
                                         code_location: self.get_pos(),
-                                        note: None,
+                                        note: Some("number 中最多有一个小数点.".into()),
                                         help: None,
                                     });
                                 }
                                 None => {
                                     // 处理小数点
-                                    self.push(ch);
+                                    self.push_and_advance(ch);
                                 }
                             }
                         }
                         'x' => {
-                            self.push(ch);
+                            self.push_and_advance(ch);
                             self.state = State::HexNumber;
                         }
                         'b' => {
-                            self.push(ch);
+                            self.push_and_advance(ch);
                             self.state = State::BinarayNumber;
                         }
                         _ => {
@@ -433,7 +437,7 @@ impl Lexer {
                             tokens.push(Token::new(tk::Number(num), loc));
 
                             self.state = State::Initial;
-                            // self.fall_back();
+
                             self.current.clear();
                         }
                     };
@@ -443,15 +447,13 @@ impl Lexer {
                     match ch {
                         '"' => {
                             // string ends.
-                            // self.push(ch);
-                            self.advance(); // eat this character
 
+                            self.push_and_advance(ch);
                             self.mark_end_pos();
-                            // self.advance();
 
                             let loc = self.get_pos();
 
-                            // self.current 存放 String 字面量的内容.
+                            // self.current 存放 String 字面量的内容. 包含 双引号.
 
                             tokens.push(Token::new(
                                 tk::String(std::mem::take(&mut self.current)),
@@ -462,136 +464,140 @@ impl Lexer {
                             self.current.clear();
                         }
                         '\\' => {
-                            self.advance();
+                            // self.advance();
                             // 处理转义字符
+                            self.push_and_advance(ch);
+                            self.push_and_advance(ch);
 
-                            if let Some(next_ch) = self.peek() {
-                                match next_ch {
-                                    'n' => {
-                                        self.push('\n');
-                                    }
-                                    'r' => {
-                                        self.push('\r');
-                                    }
-                                    't' => {
-                                        self.push('\r');
-                                    }
-                                    'u' => {
-                                        // Unicode 转义 "\u{1F600}"
+                            // 字符的转义交由后续来处理, 这里仅仅将 源代码 中的字符串字面量完整记录下来.
 
-                                        self.advance(); // 
+                            // if let Some(next_ch) = self.peek() {
+                            //     match next_ch {
+                            //         'n' => {
+                            //             self.push_and_advance('\n');
+                            //         }
+                            //         'r' => {
+                            //             self.push_and_advance('\r');
+                            //         }
+                            //         't' => {
+                            //             self.push_and_advance('\t');
+                            //         }
+                            //         'u' => {
+                            //             // Unicode 转义 "\u{1F600}"
 
-                                        let mut unicode = String::new();
-                                        if let Some(next_ch) = self.peek() {
-                                            if next_ch == '{' {
-                                                self.advance();
-                                            } else {
-                                                return Err(ParserError {
-                                                    file_path: self.file_path.clone(),
-                                                    msg: format!(
-                                                        "需要一个 {{ , 而不是 {:?}",
-                                                        next_ch
-                                                    ),
-                                                    code_location: self.get_pos(),
-                                                    note: None,
-                                                    help: None,
-                                                });
-                                            }
-                                        } else {
-                                            // return Err(format!(
-                                            //     "需要一个 {{ , 而不是 {:?}",
-                                            //     next_ch
-                                            // ));
-                                            return Err(ParserError {
-                                                file_path: self.file_path.clone(),
-                                                msg: format!("需要一个 {{ , 而不是 {:?}", next_ch),
-                                                code_location: self.get_pos(),
-                                                note: None,
-                                                help: None,
-                                            });
-                                        }
-                                        // for _ in 0..4 {
-                                        for _ in 0..10 {
-                                            // \u{1F600} // 大括号中的 hex number 字符数量暂时设置为不超过 10 个.
+                            //             self.advance(); // 
 
-                                            if let Some(next_ch) = self.peek() {
-                                                if next_ch == '}' {
-                                                    self.advance();
-                                                    break;
-                                                } else {
-                                                    unicode.push(next_ch);
-                                                    self.advance();
-                                                }
-                                            } else {
-                                                return Err(ParserError {
-                                                    file_path: self.file_path.clone(),
-                                                    msg: format!(
-                                                        "需要一个 {{ , 而不是 {:?}",
-                                                        next_ch
-                                                    ),
-                                                    code_location: self.get_pos(),
-                                                    note: None,
-                                                    help: None,
-                                                });
-                                            }
-                                        }
+                            //             let mut unicode = String::new();
+                            //             if let Some(next_ch) = self.peek() {
+                            //                 if next_ch == '{' {
+                            //                     self.advance();
+                            //                 } else {
+                            //                     return Err(ParserError {
+                            //                         file_path: self.file_path.clone(),
+                            //                         msg: format!(
+                            //                             "需要一个 {{ , 而不是 {:?}",
+                            //                             next_ch
+                            //                         ),
+                            //                         code_location: self.get_pos(),
+                            //                         note: None,
+                            //                         help: None,
+                            //                     });
+                            //                 }
+                            //             } else {
+                            //                 // return Err(format!(
+                            //                 //     "需要一个 {{ , 而不是 {:?}",
+                            //                 //     next_ch
+                            //                 // ));
+                            //                 return Err(ParserError {
+                            //                     file_path: self.file_path.clone(),
+                            //                     msg: format!("需要一个 {{ , 而不是 {:?}", next_ch),
+                            //                     code_location: self.get_pos(),
+                            //                     note: None,
+                            //                     help: None,
+                            //                 });
+                            //             }
+                            //             // for _ in 0..4 {
+                            //             for _ in 0..10 {
+                            //                 // \u{1F600} // 大括号中的 hex number 字符数量暂时设置为不超过 10 个.
 
-                                        if let Ok(unicode) = u32::from_str_radix(&unicode, 16) {
-                                            let sadf = match std::char::from_u32(unicode) {
-                                                Some(ch) => ch,
-                                                None => {
-                                                    // return Err(format!(
-                                                    //     "无效的 unicode 转义序列 {:?}",
-                                                    //     unicode
-                                                    // ));
+                            //                 if let Some(next_ch) = self.peek() {
+                            //                     if next_ch == '}' {
+                            //                         self.advance();
+                            //                         break;
+                            //                     } else {
+                            //                         unicode.push(next_ch);
+                            //                         self.advance();
+                            //                     }
+                            //                 } else {
+                            //                     return Err(ParserError {
+                            //                         file_path: self.file_path.clone(),
+                            //                         msg: format!(
+                            //                             "需要一个 {{ , 而不是 {:?}",
+                            //                             next_ch
+                            //                         ),
+                            //                         code_location: self.get_pos(),
+                            //                         note: None,
+                            //                         help: None,
+                            //                     });
+                            //                 }
+                            //             }
 
-                                                    return Err(ParserError {
-                                                        file_path: self.file_path.clone(),
-                                                        msg: format!(
-                                                            "无效的 unicode 转义序列 {:?}",
-                                                            unicode
-                                                        ),
-                                                        code_location: self.get_pos(),
-                                                        note: None,
-                                                        help: None,
-                                                    });
-                                                }
-                                            };
+                            //             if let Ok(unicode) = u32::from_str_radix(&unicode, 16) {
+                            //                 let sadf = match std::char::from_u32(unicode) {
+                            //                     Some(ch) => ch,
+                            //                     None => {
+                            //                         // return Err(format!(
+                            //                         //     "无效的 unicode 转义序列 {:?}",
+                            //                         //     unicode
+                            //                         // ));
 
-                                            self.push(sadf);
-                                        } else {
-                                            return Err(ParserError {
-                                                file_path: self.file_path.clone(),
-                                                msg: format!(
-                                                    "无效的 unicode 转义序列 {:?}",
-                                                    unicode
-                                                ),
-                                                code_location: self.get_pos(),
-                                                note: None,
-                                                help: None,
-                                            });
-                                        }
-                                    }
-                                    '\\' => {
-                                        self.push('\\');
-                                        self.advance();
-                                    }
-                                    '"' => {
-                                        self.push('\"');
-                                        self.advance();
-                                    }
-                                    '0' => {
-                                        self.push('\0');
-                                        self.advance();
-                                    }
-                                    _ => {
-                                        self.push(ch);
-                                    }
-                                }
-                            }
+                            //                         return Err(ParserError {
+                            //                             file_path: self.file_path.clone(),
+                            //                             msg: format!(
+                            //                                 "无效的 unicode 转义序列 {:?}",
+                            //                                 unicode
+                            //                             ),
+                            //                             code_location: self.get_pos(),
+                            //                             note: None,
+                            //                             help: None,
+                            //                         });
+                            //                     }
+                            //                 };
+
+                            //                 self.push_and_advance(sadf);
+                            //             } else {
+                            //                 return Err(ParserError {
+                            //                     file_path: self.file_path.clone(),
+                            //                     msg: format!(
+                            //                         "无效的 unicode 转义序列 {:?}",
+                            //                         unicode
+                            //                     ),
+                            //                     code_location: self.get_pos(),
+                            //                     note: None,
+                            //                     help: None,
+                            //                 });
+                            //             }
+                            //         }
+                            //         '\\' => {
+                            //             self.push_and_advance('\\');
+                            //             // self.advance();
+                            //         }
+                            //         '"' => {
+                            //             self.push_and_advance('\"');
+                            //             // self.advance();
+                            //         }
+                            //         '0' => {
+                            //             self.push_and_advance('\0');
+                            //             // self.advance();
+                            //         }
+                            //         _ => {
+                            //             self.push_and_advance(ch);
+                            //         }
+                            //     }
+                            // }
                         }
-                        _ => {
-                            self.push(ch);
+                        x => {
+                            self.push_and_advance(x);
                         }
                     }
                 }
@@ -614,7 +620,7 @@ impl Lexer {
                         '/' => {
                             // 单行注释
 
-                            self.push(ch);
+                            self.push_and_advance(ch);
 
                             match self.current.as_str() {
                                 "//" => {
@@ -629,11 +635,11 @@ impl Lexer {
                         '*' => {
                             // 多行注释
 
-                            self.push(ch);
+                            self.push_and_advance(ch);
                             self.state = State::InBlockComment;
                         }
                         c => {
-                            self.push(c);
+                            self.push_and_advance(c);
                         }
                     }
                 }
@@ -654,20 +660,20 @@ impl Lexer {
                             self.current.clear();
                         }
                         x => {
-                            self.push(x);
+                            self.push_and_advance(x);
                         }
                     }
                 }
                 State::InBlockComment => {
                     match ch {
                         '*' => {
-                            self.push(ch);
+                            self.push_and_advance(ch);
                             if let Some(next_ch) = self.peek() {
                                 if next_ch == '/' {
                                     // 结束注释
                                     self.advance();
 
-                                    self.push('/');
+                                    self.push_and_advance('/');
 
                                     self.mark_start_pos();
                                     let loc = self.get_pos();
@@ -692,7 +698,7 @@ impl Lexer {
                             }
                         }
                         x => {
-                            self.push(x);
+                            self.push_and_advance(x);
                         }
                     }
                 }
@@ -704,7 +710,7 @@ impl Lexer {
             if !self.current.is_empty() {
                 match &self.state {
                     State::InIdentifier => {
-                        self.mark_start_pos();
+                        self.mark_end_pos();
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(
@@ -715,7 +721,7 @@ impl Lexer {
                         self.current.clear();
                     }
                     State::InNumber => {
-                        self.mark_start_pos();
+                        self.mark_end_pos();
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(
@@ -762,7 +768,7 @@ impl Lexer {
                             }
                         };
 
-                        self.mark_start_pos();
+                        self.mark_end_pos();
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(tk::Number(hex_value as f64), loc));
@@ -797,7 +803,7 @@ impl Lexer {
                             binary_value as f64
                         };
 
-                        self.mark_start_pos();
+                        self.mark_end_pos();
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(tk::Number(binary_value as f64), loc));
@@ -806,7 +812,7 @@ impl Lexer {
                     }
 
                     State::InLineComment => {
-                        self.mark_start_pos();
+                        self.mark_end_pos();
                         let loc = self.get_pos();
 
                         tokens.push(Token::new(
@@ -815,7 +821,26 @@ impl Lexer {
                         ));
                     }
                     // State::Initial => todo!(),
-                    // State::InString => todo!(),
+                    State::InString => {
+                        // string ends.
+                        // self.push(ch);
+                        // self.advance(); // eat this character
+
+                        self.mark_end_pos();
+                        // self.advance();
+
+                        let loc = self.get_pos();
+
+                        // self.current 存放 String 字面量的内容.
+
+                        tokens.push(Token::new(
+                            tk::String(std::mem::take(&mut self.current)),
+                            loc,
+                        ));
+
+                        self.state = State::Initial;
+                        self.current.clear();
+                    }
                     // State::InDocComment => todo!(),
                     // State::InBlockComment => todo!(),
                     _ => {
@@ -839,7 +864,13 @@ impl Lexer {
     fn get_pos(&mut self) -> Span {
         let start = match self.start_pos.clone() {
             Some(p) => p,
-            None => todo!(),
+            None => {
+                #[cfg(debug_assertions)]
+                panic!("self.start_pos is None {:?}", self);
+
+                #[allow(unreachable_code)]
+                self.get_current_position()
+            }
         };
         let end = match self.end_pos.clone() {
             Some(p) => p,

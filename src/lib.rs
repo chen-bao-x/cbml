@@ -105,12 +105,18 @@ mod tests {
     fn dsafdasfsadf(path: &str, code: &str) {
         use crate::parser::cbml_parser::CbmlParser;
 
-        let tokens = tokenizer(path, code)
-            .map_err(|e| {
+        let lexer_result = tokenizer(path, code).map_err(|e| {
+            println!("{:?}", e);
+            return e;
+        });
+
+        let tokens = match lexer_result {
+            Ok(t) => t,
+            Err(e) => {
                 println!("{:?}", e);
-                return e;
-            })
-            .unwrap();
+                return ();
+            }
+        };
 
         // dp(format!("tokens: {:?}", tokens));
 

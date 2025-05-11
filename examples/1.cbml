@@ -1,7 +1,7 @@
 
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
 
-package = { edition = "15245", version = "0.1.0", name = "new" }
+package = { edition = " 15245", version = "0.1.0", name = "new" }
 
 dependencies = [ssh({
     name = "chenbao_cmd"
@@ -21,7 +21,17 @@ enum_2 = ssh({
     branch = "master"
 })
 
-name = default
+// // // // // // // // //   name = default 
+
+name = "asdf
+sadfsadf 
+sadfdasf 
+
+asdfasdf 
+ asdf 
+ asdfasdf‰ asdfadsf 😀dsafasd f
+
+"
 
 age = none
 

@@ -82,9 +82,60 @@ impl ToCbmlCode for StmtKind {
 
 #[derive(Debug, Clone)]
 pub struct UseStmt {
+    /// use "path/to/file"  包含开头和结尾的 双引号, self.url 中保存的是未转译的原始代码.
     pub url: String,
     pub keyword_span: Span,
     pub url_span: Span,
+}
+impl UseStmt {
+    pub fn get_converted_string(&self) -> String {
+        // 处理空字符串的情况""
+        if self.url.len() < 2 {
+            return self.url.clone();
+        }
+
+        let len = self.url.len();
+        let start = 1; // 去掉开头的 "
+        let end = len - 1; // 去掉结尾的 "
+
+        // self.url.trim_start_matches(pat)
+
+        // return self.url[1..len - 1].to_string();
+        return self.url[start..end].to_string();
+    }
+}
+
+fn asdfasdf(s: String) -> String {
+    if s.len() < 2 {
+        return s;
+    }
+
+    let len = s.len();
+
+    let start = 1; // 去掉开头的 "
+    let end = len - 1; // 去掉结尾的 "
+
+    // return self.url[1..len - 1].to_string();
+    return s[start..end].to_string();
+}
+
+#[test]
+fn asdfasdasdfasdfsf() {
+    let a = asdfasdf(r#""#.to_string());
+    println!("{:?}", a);
+    let a = asdfasdf(r#"a"#.to_string());
+    println!("{:?}", a);
+
+    let a = asdfasdf(r#""""#.to_string());
+    println!("{:?}", a);
+
+    let a = asdfasdf(r#""a""#.to_string());
+    println!("{:?}", a);
+    let a = asdfasdf(r#""aadsfasdf""#.to_string());
+    println!("{:?}", a);
+
+    let a = asdfasdf(r#""aadsfa\"sdf""#.to_string());
+    println!("{:?}", a);
 }
 
 impl ToCbmlCode for UseStmt {
@@ -426,7 +477,7 @@ impl ToCbmlCode for LiteralKind {
         match self {
             LiteralKind::String(s) => {
                 let mut re = String::new();
-                re.push_str(&format!("\"{}\"", s));
+                re.push_str(&format!("{}", s));
                 return re;
             }
             LiteralKind::Number(n) => {
