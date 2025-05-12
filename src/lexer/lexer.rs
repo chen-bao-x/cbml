@@ -1,5 +1,5 @@
 use super::token::{Position, Span, Token};
-use crate::{dp, parser::ParserError};
+use crate::parser::ParserError;
 use std::num::ParseFloatError;
 
 #[derive(Debug, Clone, Copy)]

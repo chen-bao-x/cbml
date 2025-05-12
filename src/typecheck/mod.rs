@@ -1,13 +1,19 @@
-use crate::ToCbmlCode;
-use crate::lexer::token::Position;
+use crate::cbml_value::ToCbmlType;
+use crate::cbml_value::value::CbmlType;
+use crate::cbml_value::value::CbmlTypeKind;
+use crate::formater::ToCbmlCode;
+
+use crate::cbml_value::value::ToCbmlValue;
 use crate::lexer::token::Span;
 use crate::lexer::tokenizer;
 use crate::parser::ParserError;
 use crate::parser::StmtKind;
 use crate::parser::ast::stmt::AsignmentStmt;
+
 use crate::parser::ast::stmt::LiteralKind;
+use crate::parser::ast::stmt::Stmt;
 use crate::parser::ast::stmt::StructFieldDefStmt;
-use crate::parser::ast::stmt::TypeSignStmt;
+use crate::parser::ast::stmt::TypeDefStmt;
 use crate::parser::ast::stmt::TypeSignStmtKind;
 use std::collections::HashMap;
 
@@ -40,14 +46,16 @@ use std::collections::HashMap;
 // •	推测失败原因
 
 /// 检查 cbml 文件
-pub fn typecheck(file_path: String, ast: &Vec<StmtKind>) -> Vec<ParserError> {
+// pub fn typecheck(file_path: String, ast: &Vec<StmtKind>) -> Vec<ParserError> {
+pub fn typecheck(file_path: String, ast: &Vec<Stmt>) -> Vec<ParserError> {
     let mut type_checker = TypeChecker::new(file_path);
 
     return type_checker.typecheck(ast);
 }
 
 /// 检查 cbml 文件
-pub fn typecheck_for_def(file_path: String, ast: &Vec<StmtKind>) -> Vec<ParserError> {
+// pub fn typecheck_for_def(file_path: String, ast: &Vec<StmtKind>) -> Vec<ParserError> {
+pub fn typecheck_for_def(file_path: String, ast: &Vec<Stmt>) -> Vec<ParserError> {
     let mut type_checker = TypeChecker::new(file_path);
 
     type_checker.state = State::InTypedef;
@@ -71,8 +79,13 @@ pub struct TypeChecker {
     pub use_path: Option<String>,
 
     /// 自定义的类型, 例如: struct, enum, union, type alias, named array,
-    // pub custom_types: HashMap<String, TypeSignStmtKind>,
-    pub custom_types: HashMap<String, TypeSignStmt>,
+    pub custom_types: HashMap<String, CbmlType>,
+
+    /// 匿名类型, person: {name:string,age:number} person 的类型就是一个匿名结构体类型.
+    /// anonymous_types key 的生成规则: 1_anonymous_type_for_person,
+    /// 匿名类型以数字 1 开头是因为 自定义类型 的名称不能以 数字 开头.
+    /// 一个 typedef 文件中的 field 不能重名, 所以最后面都上 field name 可以了防止重名.
+    pub anonymous_types: HashMap<String, CbmlType>,
 
     /// 自定义的 file level field.
     pub defined_fields: HashMap<String, StructFieldDefStmt>,
@@ -162,7 +175,8 @@ impl TypeChecker {
     }
 
     /// 如果 name 已经存在, 则会返回 true.
-    fn push_type_def(&mut self, type_name: String, ty: TypeSignStmt) -> bool {
+    // fn push_type_def(&mut self, type_name: String, ty: TypeSignStmt) -> bool {
+    fn push_type_def(&mut self, type_name: String, ty: CbmlType) -> bool {
         let re = self.custom_types.insert(type_name, ty);
         match re {
             Some(_) => {
@@ -183,11 +197,12 @@ impl TypeChecker {
             asignments: HashMap::new(),
             use_path: None,
             file_path: file_path,
-            // symbol_table: SymbolTable::new(),
+            anonymous_types: HashMap::new(),
         }
     }
 
-    pub fn typecheck(&mut self, ast: &Vec<StmtKind>) -> Vec<ParserError> {
+    // pub fn typecheck(&mut self, ast: &Vec<StmtKind>) -> Vec<ParserError> {
+    pub fn typecheck(&mut self, ast: &Vec<Stmt>) -> Vec<ParserError> {
         let mut re: Vec<ParserError> = vec![];
         for s in ast {
             let asdf = self.check_one_stmt(s);
@@ -259,7 +274,8 @@ impl TypeChecker {
         // }
     }
 
-    fn did_allow_in_state(&mut self, stmt: &StmtKind) -> Option<ParserError> {
+    // fn did_allow_in_state(&mut self, stmt: &StmtKind) -> Option<ParserError> {
+    fn did_allow_in_state(&mut self, stmt: &Stmt) -> Option<ParserError> {
         // config_file = useStmt{0,1} b{0,}
         // b = linecomment | blockComment | asignment
         //
@@ -268,7 +284,7 @@ impl TypeChecker {
         // typedef_file = FileFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
 
         match self.state {
-            State::InFile => match stmt {
+            State::InFile => match stmt.kind {
                 StmtKind::Asignment(_)
                 | StmtKind::Use(_)
                 | StmtKind::LineComment(_)
@@ -276,14 +292,14 @@ impl TypeChecker {
                 _ => Some(ParserError::new(
                     self.file_path.clone(),
                     format!("stmt not allow in current scope: {:?}", stmt),
-                    stmt.get_span(),
+                    stmt.kind.get_span(),
                 )),
             },
-            State::InTypedef => match stmt {
+            State::InTypedef => match &stmt.kind {
                 StmtKind::Asignment(_) | StmtKind::Use(_) => Some(ParserError {
                     file_path: self.file_path.clone(),
                     msg: format!("stmt not allow in current scope: {:?}", stmt),
-                    code_location: stmt.get_span(),
+                    code_location: stmt.kind.get_span(),
                     note: None,
                     help: None,
                 }),
@@ -292,7 +308,8 @@ impl TypeChecker {
         }
     }
 
-    pub fn check_one_stmt(&mut self, stmt: &StmtKind) -> Option<Vec<ParserError>> {
+    // pub fn check_one_stmt(&mut self, stmt: &StmtKind) -> Option<Vec<ParserError>> {
+    pub fn check_one_stmt(&mut self, stmt: &Stmt) -> Option<Vec<ParserError>> {
         let mut result: Vec<ParserError> = vec![];
 
         let re = self.did_allow_in_state(&stmt);
@@ -300,7 +317,7 @@ impl TypeChecker {
             result.push(e);
         }
 
-        match stmt {
+        match &stmt.kind {
             StmtKind::FileFieldStmt(field_def) => {
                 // struct_field_def_stmt.field_name;
                 // struct_field_def_stmt.default;
@@ -334,7 +351,8 @@ impl TypeChecker {
                 }
 
                 if let Some(default_value) = &field_def.default {
-                    if !self.is_same_type(&field_def._type.kind, &default_value.kind) {
+                    let defnied_type = field_def._type.kind.to_cbml_type();
+                    if !self.is_same_type(&defnied_type, &default_value.kind) {
                         // 类型错误, 需要 {} found {}
 
                         let e = ParserError::err_mismatched_types(
@@ -363,17 +381,19 @@ impl TypeChecker {
                     };
                 }
             }
-            StmtKind::TypeAliasStmt(s) => {
-                // 如果使用了 Custom 类型, 这个类型是否存在.
-                if self.push_type_def(s.name.clone(), s.ty.clone()) {
-                    let e = ParserError::err_type_name_alredy_exits(
-                        self.file_path.clone(),
-                        s.name_span.clone(),
-                        &s.name,
-                    );
-                    result.push(e);
-                    // return Some(vec![e]);
-                }
+            StmtKind::TypeAliasStmt(_) => {
+                todo!();
+
+                // // 如果使用了 Custom 类型, 这个类型是否存在.
+                // if self.push_type_def(s.name.clone(), s.ty.clone()) {
+                //     let e = ParserError::err_type_name_alredy_exits(
+                //         self.file_path.clone(),
+                //         s.name_span.clone(),
+                //         &s.name,
+                //     );
+                //     result.push(e);
+                //     // return Some(vec![e]);
+                // }
             }
             StmtKind::StructDefStmt(struct_def) => {
                 let re = self.check_duplicated_type_name(
@@ -426,26 +446,27 @@ impl TypeChecker {
                 }
 
                 {
-                    let k = struct_def.struct_name.clone();
+                    let struct_name = struct_def.struct_name.clone();
 
-                    let end: Position = {
-                        if let Some(last) = struct_def.fields.last() {
-                            last.end_span().end
-                        } else {
-                            struct_def.name_span.end.clone()
-                        }
+                    // let end: Position = {
+                    //     if let Some(last) = struct_def.fields.last() {
+                    //         last.end_span().end
+                    //     } else {
+                    //         struct_def.name_span.end.clone()
+                    //     }
+                    // };
+
+                    let fields = struct_def
+                        .fields
+                        .iter()
+                        .map(|x| (x.field_name.clone(), x._type.to_cbml_type()))
+                        .collect();
+                    let ty = CbmlType {
+                        kind: CbmlTypeKind::Struct { fields: fields },
+                        name: Some(struct_name.clone()),
                     };
 
-                    let type_sign = TypeSignStmt {
-                        kind: TypeSignStmtKind::Struct(struct_def.fields.clone()),
-                        span: Span {
-                            start: struct_def.name_span.start.clone(),
-                            end: end,
-                        },
-                    };
-
-                    // self.custom_types.insert(k, v);
-                    if self.push_type_def(k, type_sign) {
+                    if self.push_type_def(struct_name, ty) {
                         let e = ParserError::err_type_name_alredy_exits(
                             self.file_path.clone(),
                             struct_def.name_span.clone(),
@@ -456,9 +477,6 @@ impl TypeChecker {
                 }
             }
             StmtKind::EnumDef(enum_def) => {
-                // enum_def.enum_name;
-                // enum_def.fields;
-
                 // fields 里面是否有重名的.
                 // 如果使用了 Custom 类型, 这个类型是否存在.
 
@@ -484,7 +502,7 @@ impl TypeChecker {
 
                         // 如果使用了 Custom 类型, 这个类型是否存在.
                         {
-                            if let TypeSignStmtKind::Custom(ref name) = field._type {
+                            if let TypeSignStmtKind::Custom(ref name) = field._type.kind {
                                 let re = self.custom_types.get(name);
                                 match re {
                                     Some(_) => {}
@@ -503,30 +521,24 @@ impl TypeChecker {
                     }
                 }
 
+                // every thing is ok.
                 {
-                    let k = enum_def.enum_name.clone();
+                    let enum_name = enum_def.enum_name.clone();
 
-                    let type_sign = TypeSignStmt {
-                        kind: TypeSignStmtKind::Enum {
-                            enum_name: enum_def.enum_name.clone(),
-                            fields: enum_def.fields.clone(),
-                        },
+                    let fields = enum_def
+                        .fields
+                        .iter()
+                        .map(|x| (x.field_name.clone(), x._type.to_cbml_type()))
+                        .collect();
 
-                        span: Span {
-                            start: enum_def.name_span.start.clone(),
-                            end: enum_def.name_span.end.clone(),
-                        },
+                    // let kind = CbmlTypeKind::Enum { fields: fields };
+
+                    let ty = CbmlType {
+                        kind: CbmlTypeKind::Enum { fields: fields },
+                        name: Some(enum_name.clone()),
                     };
 
-                    // let v = TypeSignStmtKind::Enum {
-                    //     enum_name: enum_def.enum_name.clone(),
-                    //     fields: enum_def.fields.clone(),
-                    // };
-
-                    // self.custom_types.insert(k, v);
-
-                    // self.custom_types.insert(k, v);
-                    if self.push_type_def(k, type_sign) {
+                    if self.push_type_def(enum_name, ty) {
                         let e = ParserError::err_type_name_alredy_exits(
                             self.file_path.clone(),
                             enum_def.name_span.clone(),
@@ -537,9 +549,6 @@ impl TypeChecker {
                 }
             }
             StmtKind::UnionDef(union_def) => {
-                // union_def.union_name;
-                // union_def.base_type;
-                // union_def.alowd_values;
                 // 如果使用了 Custom 类型, 这个类型是否存在.
                 // alowd_values 是否有重复的.
 
@@ -565,19 +574,6 @@ impl TypeChecker {
                     }
                 }
 
-                // 检查 alowd_values 的类型是否符合 base_type
-                for x in &union_def.allowed_values {
-                    if !self.is_same_type(&union_def.base_type, &x.kind) {
-                        let e = ParserError::err_mismatched_types(
-                            self.file_path.clone(),
-                            x.span.clone(),
-                            &union_def.base_type.to_cbml_code(0),
-                            &format!("{}", &x.kind.to_cbml_code(0)),
-                        );
-                        result.push(e);
-                    }
-                }
-
                 // alowd_values 是否有重复的.
                 {
                     let _allowed_values: Vec<LiteralKind> = {
@@ -590,9 +586,7 @@ impl TypeChecker {
                     };
 
                     let mut arr: Vec<&LiteralKind> = vec![];
-                    // let mut arr: Vec<&LiteralKind> = allowed_values.iter().collect();
 
-                    // for x in &allowed_values {
                     for x in &union_def.allowed_values {
                         if arr.contains(&&x.kind) {
                             // 有重复的项
@@ -610,27 +604,22 @@ impl TypeChecker {
                 }
 
                 {
-                    let k = union_def.union_name.clone();
+                    let union_name = union_def.union_name.clone();
 
-                    let type_sign = TypeSignStmt {
-                        kind: TypeSignStmtKind::Union {
-                            base_type: union_def.base_type.clone().into(),
-                            alowd_values: union_def.allowed_values.clone(),
+                    let alowd_values = union_def
+                        .allowed_values
+                        .iter()
+                        .map(|x| x.to_cbml_value())
+                        .collect();
+
+                    let ty = CbmlType {
+                        kind: CbmlTypeKind::Union {
+                            allowed_values: alowd_values,
                         },
-                        span: Span {
-                            start: union_def.name_span.start.clone(),
-                            end: union_def.name_span.end.clone(),
-                        },
+                        name: Some(union_name.clone()),
                     };
 
-                    // let v = TypeSignStmtKind::Union {
-                    //     base_type: union_def.base_type.clone().into(),
-                    //     alowd_values: union_def.allowed_values.clone(),
-                    // };
-
-                    // self.custom_types.insert(k, v);
-
-                    if self.push_type_def(k, type_sign) {
+                    if self.push_type_def(union_name, ty) {
                         let e = ParserError::err_type_name_alredy_exits(
                             self.file_path.clone(),
                             union_def.name_span.clone(),
@@ -728,13 +717,13 @@ impl TypeChecker {
                     Some(ty) => {
                         // 检查 value 是否符合 field_name 在 typedef 文件中定义的类型.
                         let field_def = ty.clone();
-                        let ty = field_def._type;
+                        let ty = field_def._type.kind.to_cbml_type();
 
-                        if !self.is_same_type(&ty.kind, &asign.value.kind) {
+                        if !self.is_same_type(&ty, &asign.value.kind) {
                             let e = ParserError::err_mismatched_types(
                                 self.file_path.clone(),
                                 asign.field_name_span.clone(),
-                                &ty.kind.to_cbml_code(0),
+                                &field_def._type.kind.to_cbml_code(0),
                                 &asign.value.kind.to_cbml_code(0),
                             );
                             result.push(e);
@@ -747,7 +736,7 @@ impl TypeChecker {
                             if let Some(default_value) = field_def.default {
                                 // field 定义了默认值.
 
-                                let need_type = &ty.kind;
+                                let need_type = &ty;
 
                                 let kind = default_value.kind;
                                 if !self.is_same_type(need_type, &kind) {
@@ -828,6 +817,11 @@ impl TypeChecker {
             StmtKind::BlockComment(_) => {}
             StmtKind::DocComment(_) => {}
             StmtKind::EmptyLine => todo!(),
+            StmtKind::TypeDef(type_def_stmt) => match type_def_stmt {
+                TypeDefStmt::StructDefStmt(_) => todo!(),
+                TypeDefStmt::EnumDef(_) => todo!(),
+                TypeDefStmt::UnionDef(_) => todo!(),
+            },
         }
         if result.is_empty() {
             return None;
@@ -836,17 +830,8 @@ impl TypeChecker {
         }
     }
 
-    pub fn custom_to_raw(&self, need_type: &TypeSignStmtKind) -> TypeSignStmtKind {
-        let mut re = need_type.clone();
-
-        while let TypeSignStmtKind::Custom(name) = &re {
-            match self.custom_types.get(name) {
-                Some(ty) => re = ty.kind.clone(),
-                None => break,
-            };
-        }
-
-        return re;
+    pub fn custom_to_raw(&self, type_name: &String) -> Option<&CbmlType> {
+        self.custom_types.get(type_name)
     }
 
     pub fn read_type_def_file(
@@ -923,40 +908,48 @@ impl TypeChecker {
     }
 
     /// 检查字面量的类型是否符合类型定义文件的要求.
-    pub fn is_same_type(&mut self, need_type: &TypeSignStmtKind, literal: &LiteralKind) -> bool {
+    pub fn is_same_type(&mut self, need_type: &CbmlType, literal: &LiteralKind) -> bool {
         if let LiteralKind::Default = literal {
             return true;
         }
 
-        match need_type {
-            TypeSignStmtKind::String => match literal {
+        match need_type.kind.clone() {
+            CbmlTypeKind::String => match literal {
                 LiteralKind::String { .. } => true,
                 LiteralKind::Default => true,
                 _ => false,
             },
-            TypeSignStmtKind::Number => match literal {
+            CbmlTypeKind::Number => match literal {
                 LiteralKind::Number(_) => true,
                 LiteralKind::Default => true,
                 _ => false,
             },
-            TypeSignStmtKind::Boolean => match literal {
+            CbmlTypeKind::Bool => match literal {
                 LiteralKind::Boolean(_) => true,
+                LiteralKind::Default => true,
                 _ => false,
             },
-            TypeSignStmtKind::Any => true,
-            TypeSignStmtKind::Array { inner_type, .. } => match literal {
+            CbmlTypeKind::Any => true,
+            CbmlTypeKind::Array { inner_type, .. } => match literal {
                 LiteralKind::Array(literals) => {
-                    return literals.iter().all(|x| self.is_same_type(inner_type, x));
+                    return literals.iter().all(|x| self.is_same_type(&inner_type, x));
                 }
+                LiteralKind::Default => true,
                 _ => false,
             },
-            TypeSignStmtKind::Struct(struct_field_def_stmts) => {
-                let mut struct_field_def_stmts = struct_field_def_stmts.clone();
-                struct_field_def_stmts.sort_by(|x, y| x.field_name.cmp(&y.field_name));
+            CbmlTypeKind::Struct { mut fields } => {
+                //
+                {
+                    fields.sort_by(|x, y| {
+                        let x_name = &x.0;
+                        let y_name = &y.0;
+                        return x_name.cmp(&y_name);
+                    });
+                }
 
                 match literal {
                     LiteralKind::Struct(asignment_stmts) => {
-                        if asignment_stmts.len() != struct_field_def_stmts.len() {
+                        if asignment_stmts.len() != fields.len() {
                             // 结构体字面量数量不同,
                             // 还有这些 field 需要填写,
                             // 这些 field 没有定义.
@@ -965,19 +958,28 @@ impl TypeChecker {
                             return false;
                         }
 
-                        let mut asignment_stmts = asignment_stmts.clone();
+                        // let mut asignment_stmts = asignment_stmts.clone();
 
-                        asignment_stmts.sort_by(|x, y| x.field_name.cmp(&y.field_name));
+                        let mut key_value_pairs: Vec<(String, LiteralKind)> = Vec::new();
+                        {
+                            for x in asignment_stmts {
+                                key_value_pairs.push((x.field_name.clone(), x.value.kind.clone()));
+                            }
+                        }
 
-                        let afsdf = struct_field_def_stmts.iter().zip(asignment_stmts).all(|x| {
-                            let a = x.0;
-                            let b = x.1;
-
-                            a.field_name == b.field_name
-                                && self.is_same_type(&a._type.kind, &b.value.kind)
+                        key_value_pairs.sort_by(|x, y| {
+                            let x_name = &x.0;
+                            let y_name = &y.0;
+                            return x_name.cmp(&y_name);
                         });
 
-                        return afsdf;
+                        let did_it_same = fields.iter().zip(key_value_pairs).all(|(x, y)| {
+                            let x_name = &x.0;
+                            let y_name = &y.0;
+                            x_name == y_name && self.is_same_type(&x.1, &y.1)
+                        });
+
+                        return did_it_same;
                     }
                     LiteralKind::Todo => {
                         // 不检查 todo.
@@ -989,61 +991,43 @@ impl TypeChecker {
                     _ => false,
                 }
             }
-            TypeSignStmtKind::Union {
-                base_type,
-                alowd_values,
-            } => {
-                let arr: Vec<LiteralKind> = {
-                    let mut a = vec![];
-                    for x in alowd_values {
-                        a.push(x.kind.clone());
-                    }
-
-                    a
-                };
-
-                return arr.contains(literal) && self.is_same_type(base_type, literal);
-            }
-            TypeSignStmtKind::Optional {
+            CbmlTypeKind::Optional {
                 inner_type,
                 // span: _span,
             } => {
                 return match literal {
                     LiteralKind::LiteralNone => true,
-                    _ => self.is_same_type(inner_type, literal),
+                    _ => self.is_same_type(&inner_type, literal),
                 };
             }
-            TypeSignStmtKind::Enum {
-                enum_name: _enum_name,
-                fields,
-            } => {
-                //
-                match literal {
-                    LiteralKind::EnumFieldLiteral {
-                        field_name: enum_field_literal_name,
-                        literal: lit,
-                        span: _,
-                    } => {
-                        let re = fields.iter().any(|x| {
-                            &x.field_name == enum_field_literal_name
-                                && self.is_same_type(&x._type, lit)
-                        });
+            CbmlTypeKind::Union { allowed_values } => {
+                allowed_values.contains(&literal.to_cbml_value())
+            }
+            CbmlTypeKind::Enum { fields } => match literal {
+                LiteralKind::EnumFieldLiteral {
+                    field_name,
+                    literal,
+                    ..
+                } => {
+                    // 检查 EnumFieldLiteral 的名字是否包含在 CbmlTypeKind::Enum fields 中.
 
-                        return re;
+                    for x in fields {
+                        if &x.0 == field_name {
+                            return self.is_same_type(&x.1, literal);
+                        }
                     }
-                    _ => false,
+
+                    return false;
                 }
-            }
-            TypeSignStmtKind::Custom(type_custom_name) => {
-                let re = self.custom_types.get(type_custom_name);
-
-                return match re {
-                    Some(t) => {
-                        let need = t.kind.clone();
-                        return self.is_same_type(&need, literal);
-                    }
-                    None => false,
+                _ => false,
+            },
+            CbmlTypeKind::Custom { name } => {
+                // 1. get raw type from name
+                let Some(custom_type) = self.custom_to_raw(&name) else {
+                    return false;
                 };
+
+                return self.is_same_type(&custom_type.clone(), literal);
             }
         }
     }

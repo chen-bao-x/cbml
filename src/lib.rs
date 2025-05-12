@@ -1,24 +1,11 @@
-use std::{convert::Infallible, hint::unreachable_unchecked};
 
 use lexer::token::Token;
 
+pub mod cbml_value;
+pub mod formater;
 pub mod lexer;
 pub mod parser;
 pub mod typecheck;
-pub mod value;
-
-pub trait ToCbmlCode {
-    fn to_cbml_code(&self, deepth: usize) -> String;
-}
-/// 缩进的空壳数量生成,
-/// sadfadsf("abcd", 4) -> "abcdabcdabcdabcd"
-pub fn indent(str: &str, deepth: usize) -> String {
-    let mut re = String::new();
-    for _ in 0..deepth {
-        re.push_str(str);
-    }
-    return re;
-}
 
 // fn main() {
 //     tests::test_parser();
@@ -54,14 +41,13 @@ fn timeit(count: usize, f: fn()) {
 #[cfg(test)]
 mod tests {
 
-    use crate::{dp, lexer::tokenizer, timeit, typecheck::typecheck};
+    use crate::{dp, lexer::tokenizer, typecheck::typecheck};
 
     #[test]
     pub fn test_parser() {
         // /Users/chenbao/GitHub/cbml/examples/1.cmml
-        timeit(1000, || {
-            asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
-        });
+
+        asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.def.cbml");
 

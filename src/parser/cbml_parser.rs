@@ -1,11 +1,12 @@
 use super::{
     ParserError,
     ast::stmt::{
-        AsignmentStmt, CommentStmt, Literal, LiteralKind, StmtKind, StructDef, StructFieldDefStmt,
-        TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
+        AnonymousTypeDefStmt, AsignmentStmt, CommentStmt, Literal, LiteralKind, Stmt, StmtKind,
+        StructDef, StructFieldDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
     },
 };
 use crate::{
+    cbml_value::value::ToCbmlValue,
     dp,
     lexer::token::{Position, Span, TokenKind as tk},
 };
@@ -13,6 +14,23 @@ use crate::{
     lexer::token::Token,
     parser::ast::stmt::{EnumDef, EnumFieldDef},
 };
+
+#[derive(Debug, Clone, Eq, PartialOrd, Ord, PartialEq, Hash, Copy)]
+pub struct NodeId {
+    id: u64,
+}
+
+impl NodeId {
+    pub fn to_u64(&self) -> u64 {
+        self.id
+    }
+}
+
+impl std::fmt::Display for NodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
 
 /// cbml 解析器
 pub struct CbmlParser<'a> {
@@ -22,6 +40,10 @@ pub struct CbmlParser<'a> {
 
     /// end of file
     eof: Token,
+
+    /// 临时缓存的自增 id,
+    /// 如果要生成 node_id, 请使用 self.gen_node_id()
+    node_id: NodeId,
 }
 
 impl<'a> CbmlParser<'a> {
@@ -39,11 +61,18 @@ impl<'a> CbmlParser<'a> {
                 },
             ),
             file_path: file_path,
+            node_id: NodeId { id: 0 },
         }
     }
 
+    pub fn gen_node_id(&mut self) -> NodeId {
+        self.node_id.id += 1;
+        return self.node_id;
+    }
+
     /// 解析 Token 列表，直到结束并返回 AST
-    pub fn parse(&mut self) -> Result<Vec<StmtKind>, Vec<ParserError>> {
+    // pub fn parse(&mut self) -> Result<Vec<StmtKind>, Vec<ParserError>> {
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, Vec<ParserError>> {
         let mut statements = Vec::new();
         let mut errors = Vec::new();
 
@@ -84,7 +113,8 @@ impl<'a> CbmlParser<'a> {
     }
 
     /// 解析单个语句，根据当前 Token 类型决定解析方式
-    fn parse_statement(&mut self) -> Result<StmtKind, ParserError> {
+    // fn parse_statement(&mut self) -> Result<StmtKind, ParserError> {
+    fn parse_statement(&mut self) -> Result<Stmt, ParserError> {
         // dp(format!("parse_statement(&mut self)"));
 
         _ = self.eat_zeor_or_multy(tk::NewLine);
@@ -101,7 +131,16 @@ impl<'a> CbmlParser<'a> {
                     // 解析结构体成员定义.
 
                     let field_def = self.parse_struct_field_def()?;
-                    return Ok(StmtKind::FileFieldStmt(field_def));
+                    let stmt = Stmt {
+                        span: Span {
+                            start: field_def.field_name_span.start.clone(),
+                            end: field_def.end_span().end,
+                        },
+                        kind: StmtKind::FileFieldStmt(field_def),
+                        node_id: self.gen_node_id(),
+                    };
+
+                    return Ok(stmt);
                 } else if next_tok.kind.kind_is(&tk::LParen) {
                     // 解析 enum literal
 
@@ -125,17 +164,35 @@ impl<'a> CbmlParser<'a> {
             tk::Union => self.parse_union_def(),
             tk::Enum => self.parse_enum_def(),
             tk::LineComment(s) => {
-                self.consume(tk::LineComment("".into()))?;
-                return Ok(StmtKind::LineComment(s));
+                let l = self.consume(tk::LineComment("".into()))?;
+                let stmt = Stmt {
+                    span: l.span.clone(),
+                    kind: StmtKind::LineComment(s),
+                    node_id: self.gen_node_id(),
+                };
+                return Ok(stmt);
             }
             tk::BlockComment(s) => {
-                self.consume(tk::BlockComment("".into()))?;
-                Ok(StmtKind::BlockComment(s))
+                let l = self.consume(tk::BlockComment("".into()))?;
+
+                let stmt = Stmt {
+                    span: l.span.clone(),
+                    kind: StmtKind::BlockComment(s),
+                    node_id: self.gen_node_id(),
+                };
+                return Ok(stmt);
             }
             tk::DocComment(_) => {
                 let doc = self.parse_document()?;
 
-                return Ok(StmtKind::DocComment(doc));
+                let stmt = Stmt {
+                    span: doc.span.clone(),
+                    kind: StmtKind::DocComment(doc),
+                    node_id: self.gen_node_id(),
+                };
+
+                // return Ok(StmtKind::DocComment(doc));
+                return Ok(stmt);
             }
 
             _ => {
@@ -166,6 +223,7 @@ impl<'a> CbmlParser<'a> {
                 let type_sign = TypeSignStmt {
                     kind: TypeSignStmtKind::Any,
                     span: _tok.span.clone(),
+                    node_id: self.gen_node_id(),
                 };
 
                 return Ok(type_sign);
@@ -176,6 +234,7 @@ impl<'a> CbmlParser<'a> {
                 let type_sign = TypeSignStmt {
                     kind: TypeSignStmtKind::String,
                     span: _tok.span.clone(),
+                    node_id: self.gen_node_id(),
                 };
                 return Ok(type_sign);
             }
@@ -188,6 +247,7 @@ impl<'a> CbmlParser<'a> {
                 let type_sign = TypeSignStmt {
                     kind: TypeSignStmtKind::Number,
                     span: numberty_tok.span.clone(),
+                    node_id: self.gen_node_id(),
                 };
                 return Ok(type_sign);
             }
@@ -197,6 +257,7 @@ impl<'a> CbmlParser<'a> {
                 let type_sign = TypeSignStmt {
                     kind: TypeSignStmtKind::Boolean,
                     span: boolty_tok.span.clone(),
+                    node_id: self.gen_node_id(),
                 };
                 return Ok(type_sign);
 
@@ -209,6 +270,7 @@ impl<'a> CbmlParser<'a> {
                 let type_sign = TypeSignStmt {
                     kind: TypeSignStmtKind::Custom(name),
                     span: iden_tok.span.clone(),
+                    node_id: self.gen_node_id(),
                 };
                 return Ok(type_sign);
 
@@ -230,6 +292,7 @@ impl<'a> CbmlParser<'a> {
                         start: question_mark_tok.span.start,
                         end: inner_type.span.end,
                     },
+                    node_id: self.gen_node_id(),
                 };
 
                 return Ok(type_sign);
@@ -264,6 +327,7 @@ impl<'a> CbmlParser<'a> {
                         start: l_tok.span.start,
                         end: r_tok.span.end,
                     },
+                    node_id: self.gen_node_id(),
                 };
                 return Ok(type_sign);
 
@@ -320,6 +384,7 @@ impl<'a> CbmlParser<'a> {
                         start: l_tok.span.start,
                         end: r_tok.span.end,
                     },
+                    node_id: self.gen_node_id(),
                 };
                 return Ok(type_sign);
 
@@ -332,25 +397,21 @@ impl<'a> CbmlParser<'a> {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
-                        let kinds = {
-                            let mut arr: Vec<LiteralKind> = vec![];
-                            for x in &alowd_values {
-                                arr.push(x.kind.clone());
-                            }
-                            arr
-                        };
-
-                        let base_type: TypeSignStmtKind = LiteralKind::union_base_type(&kinds);
+                        // let kinds = {
+                        //     let mut arr: Vec<LiteralKind> = vec![];
+                        //     for x in &alowd_values {
+                        //         arr.push(x.kind.clone());
+                        //     }
+                        //     arr
+                        // };
 
                         let union_end = alowd_values
                             .last()
                             .map(|a| a.span.end.clone())
                             .unwrap_or(tok.span.end.clone());
-
-                        let kind = TypeSignStmtKind::Union {
-                            base_type: Box::new(base_type),
-                            alowd_values,
-                        };
+                        let kind = TypeSignStmtKind::Anonymous(AnonymousTypeDefStmt::Union {
+                            alowd_values: alowd_values.iter().map(|x| x.to_cbml_value()).collect(),
+                        });
 
                         let type_sign = TypeSignStmt {
                             kind: kind,
@@ -358,6 +419,7 @@ impl<'a> CbmlParser<'a> {
                                 start: tok.span.start.clone(),
                                 end: union_end,
                             },
+                            node_id: self.gen_node_id(),
                         };
                         return Ok(type_sign);
 
@@ -375,15 +437,15 @@ impl<'a> CbmlParser<'a> {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
-                        let kinds = {
-                            let mut arr: Vec<LiteralKind> = vec![];
-                            for x in &alowd_values {
-                                arr.push(x.kind.clone());
-                            }
-                            arr
-                        };
+                        // let kinds = {
+                        //     let mut arr: Vec<LiteralKind> = vec![];
+                        //     for x in &alowd_values {
+                        //         arr.push(x.kind.clone());
+                        //     }
+                        //     arr
+                        // };
 
-                        let base_type: TypeSignStmtKind = LiteralKind::union_base_type(&kinds);
+                        let base_type: TypeSignStmtKind = TypeSignStmtKind::Any;
 
                         let union_end = alowd_values
                             .last()
@@ -396,6 +458,7 @@ impl<'a> CbmlParser<'a> {
                                 start: tok.span.start.clone(),
                                 end: union_end,
                             },
+                            node_id: self.gen_node_id(),
                         };
                         return Ok(type_sign);
 
@@ -664,7 +727,7 @@ impl<'a> CbmlParser<'a> {
     }
 
     /// name = "hello"
-    fn parse_asignment(&mut self) -> Result<StmtKind, ParserError> {
+    fn parse_asignment(&mut self) -> Result<Stmt, ParserError> {
         // identifier asignment literal
         // 解析赋值语句
 
@@ -680,12 +743,20 @@ impl<'a> CbmlParser<'a> {
             // dp(format!("parse_asignment(&mut self) value: {:?}", value));
 
             // self.consume_stmt_end_token()?;
+            let stmt = Stmt {
+                span: Span {
+                    start: name_tok.span.start.clone(),
+                    end: value.span.end.clone(),
+                },
+                kind: StmtKind::Asignment(AsignmentStmt {
+                    field_name: name,
+                    value,
+                    field_name_span: name_tok.span.clone(),
+                }),
+                node_id: self.gen_node_id(),
+            };
 
-            return Ok(StmtKind::Asignment(AsignmentStmt {
-                field_name: name,
-                value,
-                field_name_span: name_tok.span,
-            }));
+            return Ok(stmt);
         } else {
             dp(format!(
                 "parse_asignment error: unkonow token {:?}",
@@ -734,6 +805,7 @@ impl<'a> CbmlParser<'a> {
 
             let field_type = self.parse_type_sign()?;
             let type_sign = TypeSignStmt {
+                node_id: self.gen_node_id(),
                 kind: field_type.kind,
                 span: Span {
                     start: name_tok.span.start.clone(),
@@ -782,7 +854,8 @@ impl<'a> CbmlParser<'a> {
     }
 
     /// 解析使用 struct name { } 这种方式定义的结构体.
-    fn parse_struct_def(&mut self) -> Result<StmtKind, ParserError> {
+    // fn parse_struct_def(&mut self) -> Result<StmtKind, ParserError> {
+    fn parse_struct_def(&mut self) -> Result<Stmt, ParserError> {
         // 解析结构体定义
 
         // let doc = self.parse_document()?;
@@ -791,7 +864,7 @@ impl<'a> CbmlParser<'a> {
             Err(_) => None,
         };
 
-        self.consume(tk::Struct)?;
+        let key_word_struct = self.consume(tk::Struct)?.clone();
 
         let name_tok = self.consume(tk::Identifier("".into()))?.clone();
 
@@ -830,14 +903,23 @@ impl<'a> CbmlParser<'a> {
                 count += 1;
             }
 
-            self.consume(tk::RBrace)?;
+            let rbrace = self.consume(tk::RBrace)?;
 
-            return Ok(StmtKind::StructDefStmt(StructDef {
-                struct_name: name,
-                fields,
-                name_span: name_tok.span,
-                doc: doc,
-            }));
+            let stmt = Stmt {
+                span: Span {
+                    start: key_word_struct.span.start.clone(),
+                    end: rbrace.span.end.clone(),
+                },
+                kind: StmtKind::StructDefStmt(StructDef {
+                    struct_name: name,
+                    fields,
+                    name_span: name_tok.span,
+                    doc: doc,
+                }),
+                node_id: self.gen_node_id(),
+            };
+
+            return Ok(stmt);
         } else {
             #[cfg(debug_assertions)]
             {
@@ -893,18 +975,28 @@ impl<'a> CbmlParser<'a> {
         return Ok(literals);
     }
 
-    fn parse_use(&mut self) -> Result<StmtKind, ParserError> {
+    // fn parse_use(&mut self) -> Result<StmtKind, ParserError> {
+    fn parse_use(&mut self) -> Result<Stmt, ParserError> {
         // 解析 use 语句
         let _use_span = self.consume(tk::Use)?.span.clone();
         let url_tok = self.consume(tk::String("".into()))?.clone();
 
         if let tk::String(url) = url_tok.kind {
             self.consume_stmt_end_token()?;
-            return Ok(StmtKind::Use(UseStmt {
-                url: url,
-                keyword_span: _use_span,
-                url_span: url_tok.span,
-            }));
+
+            let stmt = Stmt {
+                span: Span {
+                    start: _use_span.start.clone(),
+                    end: url_tok.span.end.clone(),
+                },
+                kind: StmtKind::Use(UseStmt {
+                    url: url,
+                    keyword_span: _use_span,
+                    url_span: url_tok.span,
+                }),
+                node_id: self.gen_node_id(),
+            };
+            return Ok(stmt);
         } else {
             return Err(ParserError::new(
                 self.file_path.clone(),
@@ -918,7 +1010,8 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
-    fn parse_enum_def(&mut self) -> Result<StmtKind, ParserError> {
+    // fn parse_enum_def(&mut self) -> Result<StmtKind, ParserError> {
+    fn parse_enum_def(&mut self) -> Result<Stmt, ParserError> {
         // enum identifier LBrace newline{0,} enum_field{0,} RBrace
         // enum_field = newline{0,} identifier LParent typedef RParent newline
 
@@ -930,7 +1023,7 @@ impl<'a> CbmlParser<'a> {
             Err(_) => None,
         };
 
-        self.consume(tk::Enum)?; // enum
+        let key_word_enum = self.consume(tk::Enum)?.clone(); // enum
 
         let enum_name_tok = self.consume(tk::Identifier("".into()))?.clone(); // identifier
 
@@ -974,15 +1067,23 @@ impl<'a> CbmlParser<'a> {
                 }
             }
 
-            self.consume(tk::RBrace)?;
+            let rbrace = self.consume(tk::RBrace)?;
 
-            let enum_type = EnumDef {
-                enum_name,
-                fields,
-                doc: doc,
-                name_span: enum_name_tok.span,
+            let stmt = Stmt {
+                span: Span {
+                    start: key_word_enum.span.start,
+                    end: rbrace.span.end.clone(),
+                },
+                kind: StmtKind::EnumDef(EnumDef {
+                    enum_name,
+                    fields,
+                    doc: doc,
+                    name_span: enum_name_tok.span,
+                }),
+                node_id: self.gen_node_id(),
             };
-            return Ok(StmtKind::EnumDef(enum_type));
+
+            return Ok(stmt);
         } else {
             panic!("这是逻辑上不可能出现的错误.")
             // return Err(ParserError {
@@ -992,7 +1093,8 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
-    fn parse_union_def(&mut self) -> Result<StmtKind, ParserError> {
+    // fn parse_union_def(&mut self) -> Result<StmtKind, ParserError> {
+    fn parse_union_def(&mut self) -> Result<Stmt, ParserError> {
         // union LParent typesign RParent identifier Assignment union_field{1,}
         // union_field = pipe{1} literal
 
@@ -1045,14 +1147,29 @@ impl<'a> CbmlParser<'a> {
         let alowd_values = self.parse_union_fields()?; // union_field{1,}
 
         // self.consume_stmt_end_token()?;
+        let stmt = Stmt {
+            span: Span {
+                start: name_tok.span.start.clone(),
+                end: self.peek().span.end.clone(),
+            },
+            kind: StmtKind::UnionDef(UnionDef {
+                union_name,
+                base_type,
+                allowed_values: alowd_values,
+                doc: doc,
+                name_span: name_tok.span,
+            }),
+            node_id: self.gen_node_id(),
+        };
 
-        return Ok(StmtKind::UnionDef(UnionDef {
-            union_name,
-            base_type,
-            allowed_values: alowd_values,
-            doc: doc,
-            name_span: name_tok.span,
-        }));
+        return Ok(stmt);
+        // return Ok(StmtKind::UnionDef(UnionDef {
+        //     union_name,
+        //     base_type,
+        //     allowed_values: alowd_values,
+        //     doc: doc,
+        //     name_span: name_tok.span,
+        // }));
     }
 
     fn parse_enum_field(&mut self) -> Result<EnumFieldDef, ParserError> {
@@ -1072,7 +1189,7 @@ impl<'a> CbmlParser<'a> {
 
             let field = EnumFieldDef {
                 field_name,
-                _type: ty.kind,
+                _type: ty,
                 field_name_span: field_name_tok.span,
             };
 
