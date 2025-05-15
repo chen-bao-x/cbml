@@ -1,18 +1,22 @@
-
 // // asdfsadf 
+
 /* /* adsfadsf  */
 /* /* 
 sdafasdf
 sadf
 */
+
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
+
+haha_field = [
+    {
+        name = ""
+    },
+]
 package = {
     edition = " 15245"
     version = "0.1.0"
     name = "new"
-
-
-    
 }
 dependencies = [
     ssh({
@@ -25,8 +29,8 @@ dependencies = [
         varsion = "3.0.0"
     }),
 ]
-
 // asdfasdf
+
 enum_1 = ssh({
     name = "chenbao_cmd"
     git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
@@ -37,10 +41,10 @@ enum_2 = ssh({
     git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
     branch = "master"
 })
-
 // // // // // // // // // // // // // // // //   name = default 
 
 // // asdfsadf 
+
 /* /* /* /* /*  sadff */
 name = default
 age = none

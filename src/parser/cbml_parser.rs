@@ -1,14 +1,17 @@
+use std::io::SeekFrom;
+
 use super::{
     ParserError,
     ast::stmt::{
-        AnonymousTypeDefStmt, AsignmentStmt, CommentStmt, Literal, LiteralKind, Stmt, StmtKind,
-        StructDef, StructFieldDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
+        AnonymousTypeDefKind, AsignmentStmt, CommentStmt, Literal, LiteralKind, Stmt, StmtKind,
+        StructDef, StructFieldDefStmt, TypeDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef,
+        UseStmt,
     },
 };
 use crate::{
     cbml_value::value::ToCbmlValue,
     dp,
-    lexer::token::{Position, Span, TokenKind as tk},
+    lexer::token::{Position, Span, TokenID, TokenKind as tk},
 };
 use crate::{
     lexer::token::Token,
@@ -44,6 +47,7 @@ pub struct CbmlParser<'a> {
     /// 临时缓存的自增 id,
     /// 如果要生成 node_id, 请使用 self.gen_node_id()
     node_id: NodeId,
+    // ast: Vec<Stmt>,
 }
 
 impl<'a> CbmlParser<'a> {
@@ -59,15 +63,12 @@ impl<'a> CbmlParser<'a> {
                     start: Position::new(0, 0, 0),
                     end: Position::new(0, 0, 0),
                 },
+                TokenID(0),
             ),
             file_path: file_path,
             node_id: NodeId { id: 0 },
+            // ast: vec![],
         }
-    }
-
-    pub fn gen_node_id(&mut self) -> NodeId {
-        self.node_id.id += 1;
-        return self.node_id;
     }
 
     /// 解析 Token 列表，直到结束并返回 AST
@@ -105,13 +106,17 @@ impl<'a> CbmlParser<'a> {
             _ = self.eat_zeor_or_multy(tk::NewLine);
         }
 
+        // self.ast = statements;
+
         if errors.is_empty() {
             return Ok(statements);
         } else {
             return Err(errors);
         }
     }
+}
 
+impl<'a> CbmlParser<'a> {
     /// 解析单个语句，根据当前 Token 类型决定解析方式
     // fn parse_statement(&mut self) -> Result<StmtKind, ParserError> {
     fn parse_statement(&mut self) -> Result<Stmt, ParserError> {
@@ -285,9 +290,16 @@ impl<'a> CbmlParser<'a> {
                 let inner_type = self.parse_type_sign()?;
 
                 let type_sign = TypeSignStmt {
-                    kind: TypeSignStmtKind::Optional {
-                        inner_type: Box::new(inner_type.kind),
-                    },
+                    kind: TypeSignStmtKind::Anonymous(super::ast::stmt::AnonymousTypeDefStmt {
+                        kind: AnonymousTypeDefKind::Optional {
+                            inner_type: Box::new(inner_type.kind),
+                        },
+                        node_id: self.gen_node_id(),
+                        span: Span {
+                            start: question_mark_tok.span.start.clone(),
+                            end: inner_type.span.end.clone(),
+                        },
+                    }),
                     span: Span {
                         start: question_mark_tok.span.start,
                         end: inner_type.span.end,
@@ -320,9 +332,16 @@ impl<'a> CbmlParser<'a> {
                 // };
 
                 let type_sign = TypeSignStmt {
-                    kind: TypeSignStmtKind::Array {
-                        inner_type: Box::new(inner_type.kind),
-                    },
+                    kind: TypeSignStmtKind::Anonymous(super::ast::stmt::AnonymousTypeDefStmt {
+                        kind: AnonymousTypeDefKind::Array {
+                            inner_type: Box::new(inner_type.kind),
+                        },
+                        node_id: self.gen_node_id(),
+                        span: Span {
+                            start: l_tok.span.start.clone(),
+                            end: r_tok.span.end.clone(),
+                        },
+                    }),
                     span: Span {
                         start: l_tok.span.start,
                         end: r_tok.span.end,
@@ -376,7 +395,15 @@ impl<'a> CbmlParser<'a> {
 
                 let r_tok = self.consume(tk::RBrace)?.clone();
 
-                let t = TypeSignStmtKind::Struct(fields);
+                // let t = TypeSignStmtKind::Struct(fields);
+                let t = TypeSignStmtKind::Anonymous(super::ast::stmt::AnonymousTypeDefStmt {
+                    kind: AnonymousTypeDefKind::Struct(fields),
+                    node_id: self.gen_node_id(),
+                    span: Span {
+                        start: l_tok.span.start.clone(),
+                        end: r_tok.span.end.clone(),
+                    },
+                });
 
                 let type_sign = TypeSignStmt {
                     kind: t,
@@ -397,21 +424,36 @@ impl<'a> CbmlParser<'a> {
                         // 解析匿名 union.
                         let alowd_values = self.parse_union_fields()?;
 
-                        // let kinds = {
-                        //     let mut arr: Vec<LiteralKind> = vec![];
-                        //     for x in &alowd_values {
-                        //         arr.push(x.kind.clone());
-                        //     }
-                        //     arr
-                        // };
+                        let asdf: Span = {
+                            if let Some(first) = alowd_values.first() {
+                                if let Some(last) = alowd_values.last() {
+                                    Span {
+                                        start: first.span.start.clone(),
+                                        end: last.span.end.clone(),
+                                    }
+                                } else {
+                                    self.peek().span.clone()
+                                }
+                            } else {
+                                self.peek().span.clone()
+                            }
+                        };
 
                         let union_end = alowd_values
                             .last()
                             .map(|a| a.span.end.clone())
                             .unwrap_or(tok.span.end.clone());
-                        let kind = TypeSignStmtKind::Anonymous(AnonymousTypeDefStmt::Union {
-                            alowd_values: alowd_values.iter().map(|x| x.to_cbml_value()).collect(),
-                        });
+                        let kind =
+                            TypeSignStmtKind::Anonymous(super::ast::stmt::AnonymousTypeDefStmt {
+                                kind: AnonymousTypeDefKind::Union {
+                                    alowd_values: alowd_values
+                                        .iter()
+                                        .map(|x| x.to_cbml_value())
+                                        .collect(),
+                                },
+                                node_id: self.gen_node_id(),
+                                span: asdf,
+                            });
 
                         let type_sign = TypeSignStmt {
                             kind: kind,
@@ -824,6 +866,7 @@ impl<'a> CbmlParser<'a> {
                 default: default_value,
                 field_name_span: name_tok.span,
                 doc: doc,
+                node_id: self.gen_node_id(),
             });
         } else {
             dp(format!(
@@ -1152,13 +1195,13 @@ impl<'a> CbmlParser<'a> {
                 start: name_tok.span.start.clone(),
                 end: self.peek().span.end.clone(),
             },
-            kind: StmtKind::UnionDef(UnionDef {
+            kind: StmtKind::TypeDef(TypeDefStmt::UnionDef(UnionDef {
                 union_name,
                 base_type,
                 allowed_values: alowd_values,
                 doc: doc,
                 name_span: name_tok.span,
-            }),
+            })),
             node_id: self.gen_node_id(),
         };
 
@@ -1331,6 +1374,11 @@ impl<'a> CbmlParser<'a> {
                 ));
             }
         }
+    }
+
+    fn gen_node_id(&mut self) -> NodeId {
+        self.node_id.id += 1;
+        return self.node_id;
     }
 }
 

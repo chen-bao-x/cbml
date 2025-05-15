@@ -1,24 +1,17 @@
-a = "hello"
-
-// 换行符
+a = "hello"// 换行符
 b = "asdf
-sadf"
-  
-// \t
-c = "asdfdsa\tf" 
-
-// 单引号
-d = "''''"
-    
-// \\ -> \
-e = "\\"
-
-// \" -> "
-f = "sadf\"sdaf"
-
-// \r 
-r = "sadf\rsadf"
-
-// unicode
-u = "   \u{1F600}   "
-
+asdfasdf
+asdf
+asd
+f
+asdf
+a
+sdf
+\\{10ff}
+sadf"// \t
+c = "asdfdsa\\f"// 单引号
+d = "''''"// \\ -> \
+e = "\\"// \" -> "
+f = "sadf\\sdaf"// \r 
+r = "sadf\\sadf"// unicode
+u = "   \\{1F600}   "

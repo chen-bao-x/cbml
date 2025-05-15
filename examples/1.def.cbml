@@ -1,9 +1,10 @@
+
 package: {
     name: string default "hello"
     version: string
     edition: string
 }
-
+ 
 /// adsf
 dependencies: [dependencie]
 struct dependencie_with_ssh {
@@ -11,25 +12,15 @@ struct dependencie_with_ssh {
     git: string
     branch: string
 }
-struct dependencie_whith_version {
-    name: string
-    varsion: string
-}
-enum dependencie {
-    ssh({
-        name: string
-        git: string
-        branch: string
-    }) 
-    version(dependencie_whith_version) 
-}
+
+
 asdfadsf: 1 | 2 | 3 
 opt_string: ?string
 opt_number: ?number
 opt_boolean: ?bool
 opt_arr_string: ?[string]
 opt_arr_number: ?[number]
-opt_arr_boolean: ?[boolean]
+opt_arr_boolean: ?[bool]
 opt_struct: ?{
     name: string
 }
@@ -37,6 +28,7 @@ opt_struct_2: ?{
     name: string
     age: number
 }
+
 opt_union: ?1 | 2 | 3 
 opt_any: ?any
 opt_opt_number: ??number
@@ -70,6 +62,7 @@ tree: {
         }
     }
 }
+
 opt: 1 | 2 | 23 
 
 /// asfsadfsdf
@@ -83,3 +76,29 @@ haha: {
     name: string
     age: number
 }
+
+struct haha { 
+    name: string
+
+}
+
+
+haha_field: [haha]
+
+ 
+
+struct dependencie_whith_version {
+    name: string
+    varsion: string
+}
+enum dependencie {
+    ssh({
+        name: string
+        git: string
+        branch: string
+    }) 
+    version(dependencie_whith_version) 
+}
+
+
+asdfgh : number

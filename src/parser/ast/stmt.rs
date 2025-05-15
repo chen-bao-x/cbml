@@ -6,11 +6,6 @@ use crate::formater::ToCbmlCode;
 use crate::lexer::token::Span;
 use crate::parser::cbml_parser::NodeId;
 
-/// StructFieldDef | TypeAlias | StructDef | EnumDef | UnionDef | LineComment | BlockComment | DocComment
-// struct TypedefFile {
-//     val: Vec<>,
-// }
-
 #[derive(Debug, Clone)]
 pub struct Stmt {
     pub kind: StmtKind,
@@ -22,7 +17,9 @@ impl ToCbmlCode for Vec<Stmt> {
     fn to_cbml_code(&self, deepth: usize) -> String {
         let mut re = String::new();
         for x in self {
+            // re.push_str("\n");
             re.push_str(&x.to_cbml_code(deepth));
+            re.push_str("\n");
         }
 
         return re;
@@ -49,13 +46,12 @@ pub enum StmtKind {
 
     StructDefStmt(StructDef),
     EnumDef(EnumDef), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
-    UnionDef(UnionDef), // 具名 union
-
+    // UnionDef(UnionDef), // 具名 union
     /// 定义了一个有名字的类型
     TypeDef(TypeDefStmt),
+
     LineComment(String),
     BlockComment(String),
-    // DocComment(String),
     DocComment(CommentStmt),
 
     /// 空行,
@@ -71,7 +67,7 @@ impl StmtKind {
             StmtKind::TypeAliasStmt(a) => a.name_span,
             StmtKind::StructDefStmt(struct_def) => struct_def.name_span,
             StmtKind::EnumDef(enum_def) => enum_def.name_span,
-            StmtKind::UnionDef(union_def) => union_def.name_span,
+            // StmtKind::UnionDef(union_def) => union_def.name_span,
             StmtKind::LineComment(_) => todo!(),
             StmtKind::BlockComment(_) => todo!(),
             StmtKind::DocComment(d) => d.span,
@@ -134,7 +130,7 @@ impl ToCbmlCode for StmtKind {
             StmtKind::TypeAliasStmt(type_alias_stmt) => type_alias_stmt.to_cbml_code(deepth),
             StmtKind::StructDefStmt(struct_def) => struct_def.to_cbml_code(deepth),
             StmtKind::EnumDef(enum_def) => enum_def.to_cbml_code(deepth),
-            StmtKind::UnionDef(union_def) => union_def.to_cbml_code(deepth),
+            // StmtKind::UnionDef(union_def) => union_def.to_cbml_code(deepth),
             StmtKind::LineComment(s) => format!("{}", s),
             StmtKind::BlockComment(s) => format!("{}", s),
             StmtKind::DocComment(s) => format!("{}", s.document),
@@ -151,10 +147,27 @@ impl ToCbmlCode for StmtKind {
 
 #[derive(Debug, Clone)]
 pub enum TypeDefStmt {
-    // TypeAliasStmt(TypeAliasStmt), // type name = type
     StructDefStmt(StructDef),
     EnumDef(EnumDef), // enum Haha { ssh(string), git( {url: string, branch: string} ) }
     UnionDef(UnionDef), // 具名 union
+}
+
+impl TypeDefStmt {
+    pub fn get_span(&self) -> Span {
+        match self {
+            TypeDefStmt::StructDefStmt(struct_def) => struct_def.name_span.clone(),
+            TypeDefStmt::EnumDef(enum_def) => enum_def.name_span.clone(),
+            TypeDefStmt::UnionDef(union_def) => union_def.name_span.clone(),
+        }
+    }
+
+    pub fn get_name(&self) -> &str {
+        match self {
+            TypeDefStmt::StructDefStmt(struct_def) => &struct_def.struct_name,
+            TypeDefStmt::EnumDef(enum_def) => &enum_def.enum_name,
+            TypeDefStmt::UnionDef(union_def) => &union_def.union_name,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -165,7 +178,7 @@ pub struct UseStmt {
     pub url_span: Span,
 }
 impl UseStmt {
-    pub fn get_converted_string(&self) -> String {
+    pub fn get_use_url(&self) -> String {
         // 处理空字符串的情况""
         if self.url.len() < 2 {
             return self.url.clone();
@@ -250,6 +263,8 @@ pub struct StructFieldDefStmt {
     pub doc: Option<CommentStmt>,
 
     pub field_name_span: Span,
+
+    pub node_id: NodeId,
 }
 
 impl StructFieldDefStmt {
@@ -376,6 +391,8 @@ pub enum LiteralKind {
 
     // Optional,
     LiteralNone, // none
+
+    /// 这个可能会留下隐患, 暂时先不支持 todo 功能.
     Todo,
     Default,
 }
@@ -718,6 +735,7 @@ pub struct TypeSignStmt {
     pub kind: TypeSignStmtKind,
     pub span: Span,
 
+    /// 可能会定义匿名类型, 所以需要 node_id
     pub node_id: NodeId,
 }
 
@@ -733,91 +751,99 @@ impl ToCbmlCode for TypeSignStmt {
 
 impl ToCbmlType for TypeSignStmt {
     fn to_cbml_type(&self) -> CbmlType {
-        match &self.kind {
-            TypeSignStmtKind::String => CbmlType {
-                kind: CbmlTypeKind::String,
-                name: None,
-            },
-            TypeSignStmtKind::Number => CbmlType {
-                kind: CbmlTypeKind::Number,
-                name: None,
-            },
-            TypeSignStmtKind::Boolean => CbmlType {
-                kind: CbmlTypeKind::Bool,
-                name: None,
-            },
-            TypeSignStmtKind::Any => CbmlType {
-                kind: CbmlTypeKind::Any,
-                name: None,
-            },
-            TypeSignStmtKind::Array { inner_type } => CbmlType {
-                kind: CbmlTypeKind::Array {
-                    inner_type: Box::new(inner_type.to_cbml_type()),
-                },
-                name: None,
-            },
-            TypeSignStmtKind::Struct(struct_field_def_stmts) => {
-                let fields: Vec<(String, CbmlType)> = struct_field_def_stmts
-                    .iter()
-                    .map(|x| {
-                        let ty = x._type.to_cbml_type();
-                        (x.field_name.clone(), ty)
-                    })
-                    .collect();
+        self.kind.to_cbml_type()
+        // match &self.kind {
+        //     TypeSignStmtKind::String => CbmlType {
+        //         kind: CbmlTypeKind::String,
+        //         name: None,
+        //     },
+        //     TypeSignStmtKind::Number => CbmlType {
+        //         kind: CbmlTypeKind::Number,
+        //         name: None,
+        //     },
+        //     TypeSignStmtKind::Boolean => CbmlType {
+        //         kind: CbmlTypeKind::Bool,
+        //         name: None,
+        //     },
+        //     TypeSignStmtKind::Any => CbmlType {
+        //         kind: CbmlTypeKind::Any,
+        //         name: None,
+        //     },
+        //     TypeSignStmtKind::Array { inner_type } => CbmlType {
+        //         kind: CbmlTypeKind::Array {
+        //             inner_type: Box::new(inner_type.to_cbml_type()),
+        //         },
+        //         name: None,
+        //     },
+        //     TypeSignStmtKind::Struct(struct_field_def_stmts) => {
+        //         let fields: Vec<(String, CbmlType)> = struct_field_def_stmts
+        //             .iter()
+        //             .map(|x| {
+        //                 let ty = x._type.to_cbml_type();
+        //                 (x.field_name.clone(), ty)
+        //             })
+        //             .collect();
 
-                CbmlType {
-                    kind: CbmlTypeKind::Struct { fields },
-                    name: None,
-                }
-            }
-            TypeSignStmtKind::Optional { inner_type } => CbmlType {
-                kind: CbmlTypeKind::Optional {
-                    inner_type: Box::new(inner_type.to_cbml_type()),
-                },
-                name: None,
-            },
-            TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => match anonymous_type_def_stmt {
-                AnonymousTypeDefStmt::Enum { fields } => {
-                    let mut new_field: Vec<(String, CbmlType)> = Vec::new();
+        //         CbmlType {
+        //             kind: CbmlTypeKind::Struct { fields },
+        //             name: None,
+        //         }
+        //     }
+        //     TypeSignStmtKind::Optional { inner_type } => CbmlType {
+        //         kind: CbmlTypeKind::Optional {
+        //             inner_type: Box::new(inner_type.to_cbml_type()),
+        //         },
+        //         name: None,
+        //     },
+        //     TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => {
+        //         match &anonymous_type_def_stmt.kind {
+        //             AnonymousTypeDefKind::Enum { fields } => {
+        //                 let mut new_field: Vec<(String, CbmlType)> = Vec::new();
 
-                    for x in fields {
-                        new_field.push((x.field_name.clone(), x._type.to_cbml_type()));
-                    }
+        //                 for x in fields {
+        //                     new_field.push((x.field_name.clone(), x._type.to_cbml_type()));
+        //                 }
 
-                    CbmlType {
-                        kind: CbmlTypeKind::Enum { fields: new_field },
-                        name: None,
-                    }
-                }
-                AnonymousTypeDefStmt::Struct(struct_field_def_stmts) => {
-                    let mut new_fields: Vec<(String, CbmlType)> = Vec::new();
+        //                 CbmlType {
+        //                     kind: CbmlTypeKind::Enum { fields: new_field },
+        //                     name: None,
+        //                 }
+        //             }
+        //             AnonymousTypeDefKind::Struct(struct_field_def_stmts) => {
+        //                 let mut new_fields: Vec<(String, CbmlType)> = Vec::new();
 
-                    for x in struct_field_def_stmts {
-                        new_fields.push((x.field_name.clone(), x._type.to_cbml_type()));
-                    }
+        //                 for x in struct_field_def_stmts {
+        //                     new_fields.push((x.field_name.clone(), x._type.to_cbml_type()));
+        //                 }
 
-                    CbmlType {
-                        kind: CbmlTypeKind::Struct { fields: new_fields },
-                        name: None,
-                    }
-                }
-                AnonymousTypeDefStmt::Union {
-                    // base_type,
-                    alowd_values,
-                } => CbmlType {
-                    kind: CbmlTypeKind::Union {
-                        allowed_values: alowd_values.clone(),
-                    },
-                    name: None,
-                },
-            },
-            TypeSignStmtKind::Custom(name) => CbmlType {
-                kind: CbmlTypeKind::Custom {
-                    name: name.to_string(),
-                },
-                name: Some(name.to_string()),
-            },
-        }
+        //                 CbmlType {
+        //                     kind: CbmlTypeKind::Struct { fields: new_fields },
+        //                     name: None,
+        //                 }
+        //             }
+        //             AnonymousTypeDefKind::Union {
+        //                 // base_type,
+        //                 alowd_values,
+        //             } => CbmlType {
+        //                 kind: CbmlTypeKind::Union {
+        //                     allowed_values: alowd_values.clone(),
+        //                 },
+        //                 name: None,
+        //             },
+        //         }
+        //     }
+        //     TypeSignStmtKind::Custom(name) => {
+        //         // 根据 name 找到对应的 CbmlType.
+        //         todo!();
+        //         // CbmlType {
+        //         //     //
+        //         //     kind: CbmlTypeKind::Custom {
+        //         //         name: name.to_string(),
+        //         //     },
+        //         //     name: Some(name.to_string()),
+        //         // }
+        //     }
+        // }
     }
 }
 
@@ -832,33 +858,6 @@ pub enum TypeSignStmtKind {
     Boolean, // bool
     Any,     // any
 
-    /// 匿名数组类型
-    /// [Type]
-    Array {
-        inner_type: Box<TypeSignStmtKind>,
-    },
-
-    /// 匿名结构体
-    Struct(Vec<StructFieldDefStmt>),
-
-    /// 匿名 union
-    // Union {
-    //     base_type: Box<TypeSignStmtKind>,
-    //     // alowd_values: Vec<LiteralKind>, // 1 | 2 | 3
-    //     alowd_values: Vec<Literal>, // 1 | 2 | 3
-    // }, // 匿名联合类型
-    Optional {
-        inner_type: Box<TypeSignStmtKind>,
-        // span: Span,
-    }, // ?string /number ?bool ?[string] ?[number] ?[bool] ?{name: string}
-
-    /// 匿名 enum
-    // Enum {
-    //     enum_name: String,
-    //     // field_type: Box<CbmlType>,
-    //     fields: Vec<EnumFieldDef>,
-    // },
-
     /// 匿名类型
     Anonymous(AnonymousTypeDefStmt),
 
@@ -871,93 +870,94 @@ impl ToCbmlType for TypeSignStmtKind {
         match self {
             TypeSignStmtKind::String => CbmlType {
                 kind: CbmlTypeKind::String,
-                name: None,
+                // name: None,
             },
             TypeSignStmtKind::Number => CbmlType {
                 kind: CbmlTypeKind::Number,
-                name: None,
+                // name: None,
             },
             TypeSignStmtKind::Boolean => CbmlType {
                 kind: CbmlTypeKind::Bool,
-                name: None,
+                // name: None,
             },
             TypeSignStmtKind::Any => CbmlType {
                 kind: CbmlTypeKind::Any,
-                name: None,
+                // name: None,
             },
-            TypeSignStmtKind::Array { inner_type } => CbmlType {
-                kind: CbmlTypeKind::Array {
-                    inner_type: Box::new(inner_type.to_cbml_type()),
-                },
-                name: None,
-            },
-            TypeSignStmtKind::Struct(struct_field_def_stmts) => {
-                let fields: Vec<(String, CbmlType)> = struct_field_def_stmts
-                    .iter()
-                    .map(|x| {
-                        let ty = x._type.to_cbml_type();
-                        (x.field_name.clone(), ty)
-                    })
-                    .collect();
 
-                CbmlType {
-                    kind: CbmlTypeKind::Struct { fields },
-                    name: None,
+            TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => {
+                match &anonymous_type_def_stmt.kind {
+                    AnonymousTypeDefKind::Enum { fields } => {
+                        let mut new_field: Vec<(String, CbmlType)> = Vec::new();
+
+                        for x in fields {
+                            new_field.push((x.field_name.clone(), x._type.to_cbml_type()));
+                        }
+
+                        CbmlType {
+                            kind: CbmlTypeKind::Enum { fields: new_field },
+                            // name: None,
+                        }
+                    }
+                    AnonymousTypeDefKind::Struct(struct_field_def_stmts) => {
+                        let mut new_fields: Vec<(String, CbmlType)> = Vec::new();
+
+                        for x in struct_field_def_stmts {
+                            new_fields.push((x.field_name.clone(), x._type.to_cbml_type()));
+                        }
+
+                        CbmlType {
+                            kind: CbmlTypeKind::Struct { fields: new_fields },
+                            // name: None,
+                        }
+                    }
+                    AnonymousTypeDefKind::Union {
+                        // base_type,
+                        alowd_values,
+                    } => CbmlType {
+                        kind: CbmlTypeKind::Union {
+                            allowed_values: alowd_values.clone(),
+                        },
+                        // name: None,
+                    },
+                    AnonymousTypeDefKind::Optional { inner_type } => CbmlType {
+                        kind: CbmlTypeKind::Optional {
+                            inner_type: inner_type.to_cbml_type().into(),
+                        },
+                    },
+                    AnonymousTypeDefKind::Array { inner_type } => todo!(),
                 }
             }
-            TypeSignStmtKind::Optional { inner_type } => CbmlType {
-                kind: CbmlTypeKind::Optional {
-                    inner_type: Box::new(inner_type.to_cbml_type()),
-                },
-                name: None,
-            },
-            TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => match anonymous_type_def_stmt {
-                AnonymousTypeDefStmt::Enum { fields } => {
-                    let mut new_field: Vec<(String, CbmlType)> = Vec::new();
-
-                    for x in fields {
-                        new_field.push((x.field_name.clone(), x._type.to_cbml_type()));
-                    }
-
-                    CbmlType {
-                        kind: CbmlTypeKind::Enum { fields: new_field },
-                        name: None,
-                    }
-                }
-                AnonymousTypeDefStmt::Struct(struct_field_def_stmts) => {
-                    let mut new_fields: Vec<(String, CbmlType)> = Vec::new();
-
-                    for x in struct_field_def_stmts {
-                        new_fields.push((x.field_name.clone(), x._type.to_cbml_type()));
-                    }
-
-                    CbmlType {
-                        kind: CbmlTypeKind::Struct { fields: new_fields },
-                        name: None,
-                    }
-                }
-                AnonymousTypeDefStmt::Union {
-                    // base_type,
-                    alowd_values,
-                } => CbmlType {
-                    kind: CbmlTypeKind::Union {
-                        allowed_values: alowd_values.clone(),
-                    },
-                    name: None,
-                },
-            },
-            TypeSignStmtKind::Custom(name) => CbmlType {
-                kind: CbmlTypeKind::Custom { name: name.clone() },
-                name: Some(name.clone()),
-            },
+            TypeSignStmtKind::Custom(name) => {
+                // 根据 name 找到对应的 CbmlType.
+                todo!();
+                // CbmlType {
+                //     kind: CbmlTypeKind::Custom { name: name.clone() },
+                //     name: Some(name.clone()),
+                // }
+            }
         }
     }
 }
 
-impl TypeSignStmtKind {}
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnonymousTypeDefStmt {
+    pub kind: AnonymousTypeDefKind,
+    pub node_id: NodeId,
+    pub span: Span,
+}
+impl ToCbmlType for AnonymousTypeDefStmt {
+    fn to_cbml_type(&self) -> CbmlType {
+        self.kind.to_cbml_type()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AnonymousTypeDefStmt {
+pub enum AnonymousTypeDefKind {
+    /// 匿名数组类型
+    /// [Type]
+    Array { inner_type: Box<TypeSignStmtKind> },
+
     /// 匿名 enum
     Enum {
         // field_type: Box<CbmlType>,
@@ -969,12 +969,17 @@ pub enum AnonymousTypeDefStmt {
     Union {
         alowd_values: Vec<CbmlValue>, // 1 | 2 | 3 | "asdf" | false | [1,2,3]
     }, // 匿名联合类型
+
+    Optional {
+        inner_type: Box<TypeSignStmtKind>,
+        // span: Span,
+    }, // ?string /number ?bool ?[string] ?[number] ?[bool] ?{name: string}
 }
 
-impl ToCbmlType for AnonymousTypeDefStmt {
+impl ToCbmlType for AnonymousTypeDefKind {
     fn to_cbml_type(&self) -> CbmlType {
         match self {
-            AnonymousTypeDefStmt::Enum { fields } => {
+            AnonymousTypeDefKind::Enum { fields } => {
                 let mut new_fields: Vec<(String, CbmlType)> = vec![];
 
                 for x in fields {
@@ -983,10 +988,10 @@ impl ToCbmlType for AnonymousTypeDefStmt {
 
                 return CbmlType {
                     kind: CbmlTypeKind::Enum { fields: new_fields },
-                    name: None,
+                    // name: None,
                 };
             }
-            AnonymousTypeDefStmt::Struct(struct_field_def_stmts) => {
+            AnonymousTypeDefKind::Struct(struct_field_def_stmts) => {
                 let mut new_fields: Vec<(String, CbmlType)> = vec![];
 
                 for x in struct_field_def_stmts {
@@ -995,18 +1000,24 @@ impl ToCbmlType for AnonymousTypeDefStmt {
 
                 return CbmlType {
                     kind: CbmlTypeKind::Struct { fields: new_fields },
-                    name: None,
+                    // name: None,
                 };
             }
-            AnonymousTypeDefStmt::Union {
+            AnonymousTypeDefKind::Union {
                 // base_type,
                 alowd_values,
             } => CbmlType {
                 kind: CbmlTypeKind::Union {
                     allowed_values: alowd_values.clone(),
                 },
-                name: None,
+                // name: None,
             },
+            AnonymousTypeDefKind::Optional { inner_type } => CbmlType {
+                kind: CbmlTypeKind::Optional {
+                    inner_type: inner_type.to_cbml_type().into(),
+                },
+            },
+            AnonymousTypeDefKind::Array { inner_type } => todo!(),
         }
     }
 }
@@ -1018,20 +1029,20 @@ impl ToCbmlCode for TypeSignStmtKind {
             TypeSignStmtKind::Number => format!("number"),
             TypeSignStmtKind::Boolean => format!("bool"),
             TypeSignStmtKind::Any => format!("any"),
-            TypeSignStmtKind::Array { inner_type, .. } => {
-                format!("[{}]", inner_type.to_cbml_code(deepth + 1))
-            }
-            TypeSignStmtKind::Struct(struct_field_def_stmts) => {
-                let mut re = String::new();
-                re.push_str("{\n");
+            // TypeSignStmtKind::Array { inner_type, .. } => {
+            //     format!("[{}]", inner_type.to_cbml_code(deepth + 1))
+            // }
+            // TypeSignStmtKind::Struct(struct_field_def_stmts) => {
+            //     let mut re = String::new();
+            //     re.push_str("{\n");
 
-                re.push_str(&struct_field_def_stmts.to_cbml_code(deepth + 1));
+            //     re.push_str(&struct_field_def_stmts.to_cbml_code(deepth + 1));
 
-                re.push_str(&"    ".repeat(deepth));
+            //     re.push_str(&"    ".repeat(deepth));
 
-                re.push_str("}");
-                return re;
-            }
+            //     re.push_str("}");
+            //     return re;
+            // }
             // TypeSignStmtKind::Union {
             //     base_type: _base_type,
             //     alowd_values,
@@ -1050,9 +1061,9 @@ impl ToCbmlCode for TypeSignStmtKind {
 
             //     return str;
             // }
-            TypeSignStmtKind::Optional { inner_type } => {
-                format!("?{}", inner_type.to_cbml_code(deepth))
-            }
+            // TypeSignStmtKind::Optional { inner_type } => {
+            //     format!("?{}", inner_type.to_cbml_code(deepth))
+            // }
             // TypeSignStmtKind::Enum {
             //     enum_name: field_name,
             //     fields,
@@ -1070,50 +1081,58 @@ impl ToCbmlCode for TypeSignStmtKind {
             //     return str;
             // }
             TypeSignStmtKind::Custom(name) => name.clone(),
-            TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => match anonymous_type_def_stmt {
-                AnonymousTypeDefStmt::Enum { fields } => {
-                    let mut str = String::new();
-                    str.push_str(&format!("enum {{",));
-                    for field in fields {
-                        str.push_str(&format!(
-                            "{}( {} )\n ",
-                            field.field_name,
-                            field._type.to_cbml_code(deepth)
-                        ));
-                    }
-                    str.push_str(r"}");
-                    return str;
-                }
-                AnonymousTypeDefStmt::Struct(struct_field_def_stmts) => {
-                    let mut re = String::new();
-                    re.push_str("{\n");
-
-                    re.push_str(&struct_field_def_stmts.to_cbml_code(deepth + 1));
-
-                    re.push_str(&"    ".repeat(deepth));
-
-                    re.push_str("}");
-                    return re;
-                }
-                AnonymousTypeDefStmt::Union {
-                    // base_type,
-                    alowd_values,
-                } => {
-                    let mut str = String::new();
-                    let mut counter = 0;
-
-                    alowd_values.iter().for_each(|x| {
-                        counter += 1;
-                        if counter < alowd_values.len() {
-                            str.push_str(&format!("{} | ", x.to_cbml_code(deepth)));
-                        } else {
-                            str.push_str(&format!("{} ", x.to_cbml_code(deepth)));
+            TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => {
+                match &anonymous_type_def_stmt.kind {
+                    AnonymousTypeDefKind::Enum { fields } => {
+                        let mut str = String::new();
+                        str.push_str(&format!("enum {{",));
+                        for field in fields {
+                            str.push_str(&format!(
+                                "{}( {} )\n ",
+                                field.field_name,
+                                field._type.to_cbml_code(deepth)
+                            ));
                         }
-                    });
+                        str.push_str(r"}");
+                        return str;
+                    }
+                    AnonymousTypeDefKind::Struct(struct_field_def_stmts) => {
+                        let mut re = String::new();
+                        re.push_str("{\n");
 
-                    return str;
+                        re.push_str(&struct_field_def_stmts.to_cbml_code(deepth + 1));
+
+                        re.push_str(&"    ".repeat(deepth));
+
+                        re.push_str("}");
+                        return re;
+                    }
+                    AnonymousTypeDefKind::Union {
+                        // base_type,
+                        alowd_values,
+                    } => {
+                        let mut str = String::new();
+                        let mut counter = 0;
+
+                        alowd_values.iter().for_each(|x| {
+                            counter += 1;
+                            if counter < alowd_values.len() {
+                                str.push_str(&format!("{} | ", x.to_cbml_code(deepth)));
+                            } else {
+                                str.push_str(&format!("{} ", x.to_cbml_code(deepth)));
+                            }
+                        });
+
+                        return str;
+                    }
+                    AnonymousTypeDefKind::Array { inner_type } => {
+                        format!("[{}]", inner_type.to_cbml_code(deepth + 1))
+                    }
+                    AnonymousTypeDefKind::Optional { inner_type } => {
+                        format!("?{}", inner_type.to_cbml_code(deepth))
+                    }
                 }
-            },
+            }
         }
     }
 }
@@ -1136,14 +1155,14 @@ pub enum TypeInference {
 /// 具名 struct
 #[derive(Debug, Clone)]
 pub struct StructDef {
+    pub doc: Option<CommentStmt>,
+
     pub struct_name: String,
 
     // fields: HashMap<String, CbmlType>, // 字段名不能重复, 所以用 HashMap.
     pub fields: Vec<StructFieldDefStmt>, // 字段名不能重复, 所以用 HashMap., // 字段名不能重复, 所以用 HashMap.
 
     pub name_span: Span,
-
-    pub doc: Option<CommentStmt>,
 }
 impl ToCbmlCode for StructDef {
     fn to_cbml_code(&self, deepth: usize) -> String {
@@ -1158,15 +1177,27 @@ impl ToCbmlCode for StructDef {
         return re;
     }
 }
+impl StructDef {
+    pub fn end_span(&self) -> Span {
+        let Some(last) = self.fields.last() else {
+            return self.name_span.clone();
+        };
+
+        return Span {
+            start: self.name_span.start.clone(),
+            end: last.field_name_span.end.clone(),
+        };
+    }
+}
 
 /// 具名 enum
 #[derive(Debug, Clone)]
 pub struct EnumDef {
+    pub doc: Option<CommentStmt>,
+
     pub enum_name: String,
 
     pub fields: Vec<EnumFieldDef>,
-
-    pub doc: Option<CommentStmt>,
 
     pub name_span: Span,
 }

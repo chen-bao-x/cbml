@@ -1,16 +1,26 @@
-#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
+pub struct TokenID(pub(crate) u64);
+
 #[derive(Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
+
+    /// 只读
+    token_id: TokenID,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, location: Span) -> Self {
+    pub fn new(kind: TokenKind, location: Span, token_id: TokenID) -> Self {
         Token {
             kind,
             span: location,
+            token_id,
         }
+    }
+
+    pub fn get_id(&self) -> TokenID {
+        self.token_id
     }
 }
 

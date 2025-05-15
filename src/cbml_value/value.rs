@@ -94,13 +94,13 @@ impl ToCbmlCode for CbmlValue {
 
 #[derive(Debug, Clone)]
 pub struct CbmlType {
+    /// String, Number, Bool, Any, 这几种内置类型是不需要定义名字的.
     pub kind: CbmlTypeKind,
-    pub name: Option<String>,
 }
 
 impl PartialEq for CbmlType {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.kind == other.kind
+        self.kind == other.kind
     }
 }
 impl ToCbmlCode for CbmlType {
@@ -109,7 +109,7 @@ impl ToCbmlCode for CbmlType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CbmlTypeKind {
     String,
     Number,
@@ -135,12 +135,47 @@ pub enum CbmlTypeKind {
     Enum {
         fields: Vec<(String, CbmlType)>,
     },
-
-    /// 有名字的类型.
-    Custom {
-        name: String,
-    },
 }
+
+// impl PartialEq for CbmlTypeKind {
+//     fn eq(&self, other: &Self) -> bool {
+//         match (self, other) {
+//             (
+//                 Self::Array {
+//                     inner_type: l_inner_type,
+//                 },
+//                 Self::Array {
+//                     inner_type: r_inner_type,
+//                 },
+//             ) => l_inner_type == r_inner_type,
+//             (Self::Struct { fields: l_fields }, Self::Struct { fields: r_fields }) => {
+//                 l_fields == r_fields
+//             }
+//             (
+//                 Self::Union {
+//                     allowed_values: l_allowed_values,
+//                 },
+//                 Self::Union {
+//                     allowed_values: r_allowed_values,
+//                 },
+//             ) => l_allowed_values == r_allowed_values,
+//             (
+//                 Self::Optional {
+//                     inner_type: l_inner_type,
+//                 },
+//                 Self::Optional {
+//                     inner_type: r_inner_type,
+//                 },
+//             ) => l_inner_type == r_inner_type,
+//             (Self::Enum { fields: l_fields }, Self::Enum { fields: r_fields }) => {
+//                 l_fields == r_fields
+//             }
+//             (Self::Any, _) => true,
+//             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+//         }
+//     }
+// }
+
 impl ToCbmlCode for CbmlTypeKind {
     fn to_cbml_code(&self, deepth: usize) -> String {
         match self {
@@ -177,47 +212,7 @@ impl ToCbmlCode for CbmlTypeKind {
                     re.push_str(&format!("{}( {} )\n ", x.0, x.1.to_cbml_code(deepth)));
                 }
                 return re;
-            }
-            CbmlTypeKind::Custom { name } => name.to_string(),
-        }
-    }
-}
-
-impl PartialEq for CbmlTypeKind {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Self::Array {
-                    inner_type: l_inner_type,
-                },
-                Self::Array {
-                    inner_type: r_inner_type,
-                },
-            ) => l_inner_type == r_inner_type,
-            (Self::Struct { fields: l_fields }, Self::Struct { fields: r_fields }) => {
-                l_fields == r_fields
-            }
-            (
-                Self::Union {
-                    allowed_values: l_allowed_values,
-                },
-                Self::Union {
-                    allowed_values: r_allowed_values,
-                },
-            ) => l_allowed_values == r_allowed_values,
-            (
-                Self::Optional {
-                    inner_type: l_inner_type,
-                },
-                Self::Optional {
-                    inner_type: r_inner_type,
-                },
-            ) => l_inner_type == r_inner_type,
-            (Self::Enum { fields: l_fields }, Self::Enum { fields: r_fields }) => {
-                l_fields == r_fields
-            }
-            (Self::Any, _) => true,
-            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+            } // CbmlTypeKind::Custom { name } => name.to_string(),
         }
     }
 }

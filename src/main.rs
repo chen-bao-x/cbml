@@ -1,15 +1,13 @@
-
-use lexer::token::Token;
-
+pub mod cbml_project;
 pub mod cbml_value;
 pub mod formater;
 pub mod lexer;
 pub mod parser;
 pub mod typecheck;
 
-// fn main() {
-//     tests::test_parser();
-// }
+fn main() {
+    tests::test_parser();
+}
 
 // 在编写时的 错误检查
 // language server
@@ -38,18 +36,25 @@ fn timeit(count: usize, f: fn()) {
     println!("耗时：{:?}", duration);
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 mod tests {
 
-    use crate::{dp, lexer::tokenizer, typecheck::typecheck};
+    use crate::{
+        cbml_project::{code_file::CodeFile, typedef_file::TypedefFile},
+        dp,
+        lexer::tokenizer,
+        typecheck::typecheck,
+    };
 
-    #[test]
+    // #[test]
     pub fn test_parser() {
         // /Users/chenbao/GitHub/cbml/examples/1.cmml
 
-        asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
+        // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.cbml");
+        test_code_file("/Users/chenbao/GitHub/cbml/examples/1.cbml");
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/1.def.cbml");
+        test_typedef("/Users/chenbao/GitHub/cbml/examples/1.def.cbml");
 
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/2_arr.cbml");
 
@@ -84,6 +89,33 @@ mod tests {
     #[test]
     fn test_struct() {
         asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
+    }
+
+    fn test_code_file(path: &str) {
+        use std::fs::read_to_string;
+        let code = read_to_string(path).unwrap();
+
+        let asdf = CodeFile::new(path.into());
+        asdf.errors.iter().for_each(|x| {
+            x.report_error(&code);
+        });
+
+        asdf.typedef_file.map(|x| {
+            x.errors.iter().for_each(|x| {
+                x.report_error(&code);
+            });
+            ()
+        });
+    }
+
+    fn test_typedef(path: &str) {
+        use std::fs::read_to_string;
+        let code = read_to_string(path).unwrap();
+
+        let asdf = TypedefFile::new(path.into());
+        asdf.errors.iter().for_each(|x| {
+            x.report_error(&code);
+        });
     }
 
     fn asdfasdfsdf(path: &str) {
@@ -147,6 +179,7 @@ mod tests {
     }
 }
 
+/// debug_println.
 /// 只会在 debug 模式下打印输出.
 pub fn dp<T>(s: T)
 where
@@ -156,15 +189,4 @@ where
     {
         println!("{}", s.to_string());
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct CodeFile {
-    /// 当前文件的 path.
-    pub file_path: String,
-    pub text: String,
-    pub tokens: Vec<Token>,
-    pub ast: Vec<parser::StmtKind>,
-
-    pub is_parsed: bool,
 }

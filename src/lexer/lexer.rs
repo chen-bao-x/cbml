@@ -1,5 +1,7 @@
-use super::token::{Position, Span, Token};
-use crate::parser::ParserError;
+use crate::parser::parser_error::ParserError;
+
+use super::token::{Position, Span, Token, TokenID};
+
 use std::num::ParseFloatError;
 
 #[derive(Debug, Clone, Copy)]
@@ -28,6 +30,8 @@ pub struct Lexer {
 
     start_pos: Option<Position>,
     end_pos: Option<Position>,
+
+    token_id: TokenID,
 }
 
 impl Lexer {
@@ -42,7 +46,13 @@ impl Lexer {
             state: State::Initial,
             start_pos: None,
             end_pos: None,
+            token_id: TokenID(0),
         }
+    }
+
+    fn gen_token_id(&mut self) -> TokenID {
+        self.token_id.0 += 1;
+        return self.token_id;
     }
 
     fn push_and_advance(&mut self, ch: char) {
@@ -122,7 +132,7 @@ impl Lexer {
 
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::NewLine, loc));
+                            tokens.push(Token::new(tk::NewLine, loc, self.gen_token_id()));
                         }
                         '(' => {
                             self.mark_start_pos();
@@ -130,7 +140,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::LParen, loc));
+                            tokens.push(Token::new(tk::LParen, loc, self.gen_token_id()));
                         }
                         ')' => {
                             self.mark_start_pos();
@@ -138,7 +148,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::RParen, loc));
+                            tokens.push(Token::new(tk::RParen, loc, self.gen_token_id()));
                         }
                         '[' => {
                             self.mark_start_pos();
@@ -146,7 +156,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::LBracket, loc));
+                            tokens.push(Token::new(tk::LBracket, loc, self.gen_token_id()));
                         }
                         ']' => {
                             self.mark_start_pos();
@@ -154,7 +164,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::RBracket, loc));
+                            tokens.push(Token::new(tk::RBracket, loc, self.gen_token_id()));
                         }
                         '{' => {
                             self.mark_start_pos();
@@ -162,7 +172,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::LBrace, loc));
+                            tokens.push(Token::new(tk::LBrace, loc, self.gen_token_id()));
                         }
                         '}' => {
                             self.mark_start_pos();
@@ -170,7 +180,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::RBrace, loc));
+                            tokens.push(Token::new(tk::RBrace, loc, self.gen_token_id()));
                         }
                         ',' => {
                             self.mark_start_pos();
@@ -178,7 +188,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::Comma, loc));
+                            tokens.push(Token::new(tk::Comma, loc, self.gen_token_id()));
                         }
                         ':' => {
                             self.mark_start_pos();
@@ -186,7 +196,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::Colon, loc));
+                            tokens.push(Token::new(tk::Colon, loc, self.gen_token_id()));
                         }
                         '|' => {
                             self.mark_start_pos();
@@ -194,21 +204,21 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::Pipe, loc));
+                            tokens.push(Token::new(tk::Pipe, loc, self.gen_token_id()));
                         }
                         '=' => {
                             self.mark_start_pos();
                             self.advance(); // eat this character
                             self.mark_end_pos();
                             let loc = self.get_pos();
-                            tokens.push(Token::new(tk::Asign, loc));
+                            tokens.push(Token::new(tk::Asign, loc, self.gen_token_id()));
                         }
                         '?' => {
                             self.mark_start_pos();
                             self.advance(); // eat this character
                             self.mark_end_pos();
                             let loc = self.get_pos();
-                            tokens.push(Token::new(tk::QuestionMark, loc));
+                            tokens.push(Token::new(tk::QuestionMark, loc, self.gen_token_id()));
                         }
 
                         '"' => {
@@ -266,7 +276,7 @@ impl Lexer {
 
                             // tokens.push(Token::new(tk::Invalid(x), start, end));
 
-                            let tok = Token::new(tk::Invalid(x), loc);
+                            let tok = Token::new(tk::Invalid(x), loc, self.gen_token_id());
 
                             return Err(ParserError {
                                 file_path: self.file_path.clone(),
@@ -290,6 +300,7 @@ impl Lexer {
                         tokens.push(Token::new(
                             tk::Identifier(identifier).handle_keyword(),
                             self.get_pos(),
+                            self.gen_token_id(),
                         ));
 
                         self.state = State::Initial;
@@ -336,7 +347,11 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::Number(binary_value as f64), loc));
+                            tokens.push(Token::new(
+                                tk::Number(binary_value as f64),
+                                loc,
+                                self.gen_token_id(),
+                            ));
 
                             self.state = State::Initial;
 
@@ -387,7 +402,11 @@ impl Lexer {
                         self.mark_end_pos();
                         let loc = self.get_pos();
 
-                        tokens.push(Token::new(tk::Number(hex_value as f64), loc));
+                        tokens.push(Token::new(
+                            tk::Number(hex_value as f64),
+                            loc,
+                            self.gen_token_id(),
+                        ));
 
                         self.state = State::Initial;
                         // self.fall_back();
@@ -444,7 +463,7 @@ impl Lexer {
                             self.mark_end_pos();
                             let loc = self.get_pos();
 
-                            tokens.push(Token::new(tk::Number(num), loc));
+                            tokens.push(Token::new(tk::Number(num), loc, self.gen_token_id()));
 
                             self.state = State::Initial;
 
@@ -468,6 +487,7 @@ impl Lexer {
                             tokens.push(Token::new(
                                 tk::String(std::mem::take(&mut self.current)),
                                 loc,
+                                self.gen_token_id(),
                             ));
 
                             self.state = State::Initial;
@@ -624,6 +644,7 @@ impl Lexer {
                             tokens.push(Token::new(
                                 tk::LineComment(std::mem::take(&mut self.current)),
                                 loc,
+                                self.gen_token_id(),
                             ));
 
                             self.state = State::Initial;
@@ -668,9 +689,9 @@ impl Lexer {
                             let loc = self.get_pos();
 
                             tokens.push(Token::new(
-                                // tk::DocComment(std::mem::take(&mut self.current)),
                                 tk::DocComment(self.current.clone()),
                                 loc,
+                                self.gen_token_id(),
                             ));
 
                             self.state = State::Initial;
@@ -702,6 +723,7 @@ impl Lexer {
                                     tokens.push(Token::new(
                                         tk::BlockComment(std::mem::take(&mut self.current)),
                                         loc,
+                                        self.gen_token_id(),
                                     ));
 
                                     self.state = State::Initial;
@@ -737,6 +759,7 @@ impl Lexer {
                         tokens.push(Token::new(
                             tk::Identifier(std::mem::take(&mut self.current)).handle_keyword(),
                             loc,
+                            self.gen_token_id(),
                         ));
 
                         self.current.clear();
@@ -756,6 +779,7 @@ impl Lexer {
                                 }
                             })?),
                             loc,
+                            self.gen_token_id(),
                         ));
 
                         self.current.clear();
@@ -792,7 +816,11 @@ impl Lexer {
                         self.mark_end_pos();
                         let loc = self.get_pos();
 
-                        tokens.push(Token::new(tk::Number(hex_value as f64), loc));
+                        tokens.push(Token::new(
+                            tk::Number(hex_value as f64),
+                            loc,
+                            self.gen_token_id(),
+                        ));
 
                         self.current.clear();
                     }
@@ -827,7 +855,11 @@ impl Lexer {
                         self.mark_end_pos();
                         let loc = self.get_pos();
 
-                        tokens.push(Token::new(tk::Number(binary_value as f64), loc));
+                        tokens.push(Token::new(
+                            tk::Number(binary_value as f64),
+                            loc,
+                            self.gen_token_id(),
+                        ));
 
                         self.current.clear();
                     }
@@ -839,6 +871,7 @@ impl Lexer {
                         tokens.push(Token::new(
                             tk::LineComment(std::mem::take(&mut self.current)),
                             loc,
+                            self.gen_token_id(),
                         ));
                     }
                     State::Initial => {
@@ -860,6 +893,7 @@ impl Lexer {
                         tokens.push(Token::new(
                             tk::String(std::mem::take(&mut self.current)),
                             loc,
+                            self.gen_token_id(),
                         ));
 
                         self.state = State::Initial;
@@ -874,6 +908,7 @@ impl Lexer {
                             // tk::DocComment(std::mem::take(&mut self.current)),
                             tk::DocComment(self.current.clone()),
                             loc,
+                            self.gen_token_id(),
                         ));
 
                         self.state = State::Initial;
@@ -888,6 +923,7 @@ impl Lexer {
                         tokens.push(Token::new(
                             tk::BlockComment(std::mem::take(&mut self.current)),
                             loc,
+                            self.gen_token_id(),
                         ));
 
                         self.state = State::Initial;
