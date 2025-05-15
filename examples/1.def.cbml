@@ -1,4 +1,5 @@
 
+aaa: number
 package: {
     name: string default "hello"
     version: string

@@ -8,6 +8,8 @@ sadf
 
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
 
+aaa = "sadf"
+
 haha_field = [
     {
         name = ""

@@ -1,15 +1,21 @@
+use super::{
+    cbml_project::{FieldAsign, FieldDef, TypeInfo},
+    typedef_file::TypedefFile,
+};
+use crate::{
+    cbml_value::value::{CbmlType, CbmlTypeKind, CbmlValue, ToCbmlValue},
+    formater::ToCbmlCode,
+    lexer::{token::Span, tokenizer},
+    parser::{
+        ast::stmt::{Literal, LiteralKind, Stmt},
+        parser_error::ParserError,
+    },
+    typecheck::types_for_check::ScopeID,
+};
 use std::{
     collections::{HashMap, HashSet},
     default, path,
 };
-
-use crate::{
-    cbml_value::value::CbmlType,
-    lexer::{token::Span, tokenizer},
-    parser::{ast::stmt::Stmt, parser_error::ParserError},
-};
-
-use super::{FieldAsign, FieldDef, typedef_file::TypedefFile};
 
 pub struct CodeFile {
     pub file_path: String,
@@ -74,10 +80,7 @@ impl CodeFile {
 
         let code = read_to_string(path).unwrap();
 
-        let lexer_result = tokenizer(path, &code).map_err(|e| {
-            println!("{:?}", e);
-            return e;
-        });
+        let lexer_result = tokenizer(path, &code);
 
         let tokens = match lexer_result {
             Ok(t) => t,
@@ -273,8 +276,195 @@ impl CodeFile {
     fn error_check(&mut self) {
         self.check_duplicated_file_field_name();
         self.check_unasigned_field();
+        self.check_type();
     }
-    // 类型检查, 检查定义的字段的类型跟赋值的类型是否相同.
+
+    // 类型检查, 检查赋值的类型跟定义的字段的类型是否相同.
+    fn check_type(&mut self) {
+        for x in &self.fields {
+            let re = self.check_one_field_type(x);
+            match re {
+                Ok(_) => {}
+                Err(e) => {
+                    self.errors.push(e);
+                }
+            }
+        }
+    }
+
+    fn is_same_type(&self, need_type: &CbmlType, found: &LiteralKind) -> bool {
+        if let LiteralKind::Default = found {
+            return true;
+        }
+
+        match need_type.kind.clone() {
+            CbmlTypeKind::String => match found {
+                LiteralKind::String { .. } => true,
+                LiteralKind::Default => true,
+                _ => false,
+            },
+            CbmlTypeKind::Number => match found {
+                LiteralKind::Number(_) => true,
+                LiteralKind::Default => true,
+                _ => false,
+            },
+            CbmlTypeKind::Bool => match found {
+                LiteralKind::Boolean(_) => true,
+                LiteralKind::Default => true,
+                _ => false,
+            },
+            CbmlTypeKind::Any => true,
+            CbmlTypeKind::Array { inner_type, .. } => {
+                //
+                match found {
+                    LiteralKind::Array(literals) => {
+                        return literals.iter().all(|x| self.is_same_type(&inner_type, x));
+                    }
+                    LiteralKind::Default => true,
+                    _ => false,
+                }
+            }
+            CbmlTypeKind::Struct { mut fields } => {
+                //
+                {
+                    fields.sort_by(|x, y| {
+                        let x_name = &x.0;
+                        let y_name = &y.0;
+                        return x_name.cmp(&y_name);
+                    });
+                }
+
+                match found {
+                    LiteralKind::Struct(asignment_stmts) => {
+                        if asignment_stmts.len() != fields.len() {
+                            // 结构体字面量数量不同,
+                            // 还有这些 field 需要填写,
+                            // 这些 field 没有定义.
+                            // TODO:
+
+                            return false;
+                        }
+
+                        // let mut asignment_stmts = asignment_stmts.clone();
+
+                        let mut key_value_pairs: Vec<(String, LiteralKind)> = Vec::new();
+                        {
+                            for x in asignment_stmts {
+                                key_value_pairs.push((x.field_name.clone(), x.value.kind.clone()));
+                            }
+                        }
+
+                        key_value_pairs.sort_by(|x, y| {
+                            let x_name = &x.0;
+                            let y_name = &y.0;
+                            return x_name.cmp(&y_name);
+                        });
+
+                        let did_it_same = fields.iter().zip(key_value_pairs).all(|(x, y)| {
+                            let x_name = &x.0;
+                            let y_name = &y.0;
+                            x_name == y_name && self.is_same_type(&x.1, &y.1)
+                        });
+
+                        return did_it_same;
+                    }
+                    LiteralKind::Todo => {
+                        // 不检查 todo.
+
+                        return true;
+                    }
+                    LiteralKind::Default => todo!("自定义 struct 类型的默认值暂时还未支持"),
+
+                    _ => false,
+                }
+            }
+            CbmlTypeKind::Optional {
+                inner_type,
+                // span: _span,
+            } => {
+                return match found {
+                    LiteralKind::LiteralNone => true,
+                    _ => self.is_same_type(&inner_type, found),
+                };
+            }
+            CbmlTypeKind::Union { allowed_values } => {
+                allowed_values.contains(&found.to_cbml_value())
+            }
+            CbmlTypeKind::Enum { fields } => match found {
+                LiteralKind::EnumFieldLiteral {
+                    field_name,
+                    literal,
+                    ..
+                } => {
+                    // 检查 EnumFieldLiteral 的名字是否包含在 CbmlTypeKind::Enum fields 中.
+                    
+                    for x in fields {
+                        if &x.0 == field_name {
+                     
+                            
+                            return self.is_same_type(&x.1, literal);
+                        }
+                    }
+
+                    return false;
+                }
+                _ => false,
+            },
+            // CbmlTypeKind::Custom { name } => {
+            //     // 1. get raw type from name
+            //     let Some(custom_type) = self.custom_to_raw(&name) else {
+            //         return false;
+            //     };
+
+            //     return self.is_same_type(&custom_type.clone(), literal);
+            // }
+        }
+    }
+
+    fn check_one_field_type(&self, field: &FieldAsign) -> Result<(), ParserError> {
+        // field.name;
+        // field.value;
+
+        let Some(type_info) = self.find_filed_type(field) else {
+            return Ok(());
+        };
+
+        if self.is_same_type(&type_info.ty, &field.value.kind) {
+            return Ok(());
+        } else {
+            let e = ParserError::err_mismatched_types(
+                self.file_path.clone(),
+                field.span.clone(),
+                // &type_info.ty.to_cbml_code(0),
+                &type_info.name,
+                &field.value.kind.to_cbml_code(0),
+            );
+
+            return Err(e);
+        }
+    }
+
+    fn find_top_field_def(&self, field_name: &String) -> Option<&FieldDef> {
+        let Some(def_file) = &self.typedef_file else {
+            return None;
+        };
+
+        let asdf = def_file.fields.iter().find(|x| &x.name == field_name);
+
+        return asdf;
+    }
+
+    fn find_filed_type(&self, field: &FieldAsign) -> Option<&TypeInfo> {
+        let Some(def_file) = &self.typedef_file else {
+            return None;
+        };
+
+        let Some(field_def) = self.find_top_field_def(&field.name) else {
+            return None;
+        };
+
+        return def_file.types.get(&field_def.type_sign);
+    }
 
     // 字段重复检查, 一个字段只需要赋值一次.
     fn check_duplicated_file_field_name(&mut self) {
@@ -304,15 +494,15 @@ impl CodeFile {
         let sadf = self.get_unasigned_field();
         if sadf.is_empty() {
             return;
-        } else {
-            sadf.iter().for_each(|x| {
-                println!("{:?}", x);
-            });
         }
 
+        let safd = sadf.iter().fold(String::new(), |mut x, y| {
+            x.push_str(&format!(" \"{}\" ", &y.name));
+            x
+        });
         let e = ParserError {
             file_path: file_path,
-            msg: format!("还有 {} 个字段未赋值.", sadf.len()),
+            msg: format!("还有 {} 个字段未赋值: {}", sadf.len(), safd),
             code_location: self.last_token_span.clone(),
             note: None,
             help: None,
@@ -331,7 +521,7 @@ impl CodeFile {
 
         // 找出定义了却没有赋值的 top level 字段,
         {
-            for x in &def_file.get_all_top_fields() {
+            for x in def_file.get_all_top_fields() {
                 let remoed = asigned_fields.remove(&x.name);
                 if !remoed {
                     unasigned_fields.push(x);
@@ -343,4 +533,15 @@ impl CodeFile {
     }
 
     // 缺失字段检查, 检查 struct 中定义了却没有赋值的字段.
+    fn check_struct_field(&mut self) {}
+
+    // fn is_same_type(&mut self, need: FieldDef, found: FieldAsign) -> bool {
+    //     false
+    // }
+
+    pub fn get_field_def(&self, need: FieldAsign) -> Option<FieldDef> {
+        // self.typedef_file.unwrap().fields
+
+        None
+    }
 }

@@ -18,8 +18,8 @@ use crate::parser::ast::stmt::TypeSignStmtKind;
 use crate::parser::ast::stmt::UseStmt;
 use crate::parser::parser_error::ParserError;
 
-use super::FieldDef;
-use super::TypeInfo;
+use super::cbml_project::FieldDef;
+use super::cbml_project::TypeInfo;
 
 pub struct TypedefFile {
     pub file_path: String,
@@ -33,6 +33,8 @@ pub struct TypedefFile {
 
     /// 解析 ast 时记录正在解析的语句所在的 scope.
     current_scope: Vec<ScopeID>,
+
+    count: usize,
 }
 
 impl TypedefFile {
@@ -43,6 +45,7 @@ impl TypedefFile {
             fields: Vec::new(),
             errors: Vec::new(),
             current_scope: Vec::new(),
+            count: 0,
         };
 
         if file_path.ends_with(".def.cbml") {
@@ -103,7 +106,14 @@ impl TypedefFile {
             | CbmlTypeKind::Bool
             | CbmlTypeKind::Any => {}
             _ => {
-                self.types.insert(name, ty);
+                let asdf = self.types.insert(name.clone(), ty);
+                match asdf {
+                    Some(v) => {
+                        dbg!(v);
+                        dbg!(self.types.get(&name));
+                    }
+                    None => {}
+                };
             }
         }
     }
@@ -145,8 +155,10 @@ impl TypedefFile {
         return re;
     }
 
-    fn auto_gen_type_name(&self, field_name: &str) -> String {
-        Self::gen_anonymous_type_name(&self.get_current_scope_id(), field_name)
+    fn auto_gen_type_name(&mut self, field_name: &str) -> String {
+        self.count += 1;
+        format!("{}", self.count)
+        // Self::gen_anonymous_type_name(&self.get_current_scope_id(), field_name)
     }
 
     fn parse_ast(&mut self, ast: Vec<Stmt>) {
@@ -179,15 +191,20 @@ impl TypedefFile {
     fn parse_one_stmt(&mut self, s: Stmt) {
         match &s.kind {
             crate::parser::StmtKind::Use(use_stmt) => self.parse_use(use_stmt),
+
             crate::parser::StmtKind::Asignment(asignment_stmt) => {
                 self.parse_asignment(asignment_stmt)
             }
+
             crate::parser::StmtKind::FileFieldStmt(struct_field_def_stmt) => {
                 self.parse_struct_field_def(struct_field_def_stmt);
             }
             crate::parser::StmtKind::TypeAliasStmt(_) => {}
+
             crate::parser::StmtKind::StructDefStmt(struct_def) => self.parse_struct_def(struct_def),
+
             crate::parser::StmtKind::EnumDef(enum_def) => self.parse_enum_def(enum_def),
+
             // crate::parser::StmtKind::UnionDef(union_def) => self.parse_union_def(union_def),
             crate::parser::StmtKind::TypeDef(type_def_stmt) => self.parse_type_def(type_def_stmt),
             crate::parser::StmtKind::LineComment(_) => {}
@@ -287,7 +304,7 @@ impl TypedefFile {
         self.outgoing_scope();
 
         let enum_type = CbmlType {
-            kind: CbmlTypeKind::Struct { fields: adsfsadf },
+            kind: CbmlTypeKind::Enum { fields: adsfsadf },
         };
 
         self.insert_type(
@@ -424,8 +441,11 @@ impl TypedefFile {
 
         match &anonymous_type_def_stmt.kind {
             crate::parser::ast::stmt::AnonymousTypeDefKind::Array { inner_type } => {
-                let (_, ty) =
-                    self.parse_type_sign_stmt(inner_type.as_ref(), field_name, anony_span.clone());
+                let (_, ty) = self.parse_type_sign_stmt(
+                    inner_type.as_ref(),
+                    &format!("{}{}", field_name, "array_inner"),
+                    anony_span.clone(),
+                );
 
                 let array_type = CbmlType {
                     kind: CbmlTypeKind::Array {

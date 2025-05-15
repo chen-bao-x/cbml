@@ -100,12 +100,16 @@ mod tests {
             x.report_error(&code);
         });
 
-        asdf.typedef_file.map(|x| {
-            x.errors.iter().for_each(|x| {
-                x.report_error(&code);
-            });
-            ()
+        asdf.typedef_file.unwrap().fields.iter().for_each(|ref x|{
+            println!("name: {}, scope: {}", x.name, x.scope.0)
         });
+
+        // asdf.typedef_file.map(|x| {
+        //     x.errors.iter().for_each(|x| {
+        //         x.report_error(&code);
+        //     });
+        //     ()
+        // });
     }
 
     fn test_typedef(path: &str) {
