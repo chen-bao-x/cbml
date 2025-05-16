@@ -1,5 +1,6 @@
 use std::clone;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 use crate::lexer::tokenizer;
 use crate::typecheck::types_for_check::ScopeID;
@@ -9,6 +10,7 @@ use crate::cbml_value::value::CbmlTypeKind;
 use crate::cbml_value::value::CbmlValue;
 use crate::cbml_value::value::ToCbmlValue;
 use crate::lexer::token::Span;
+use crate::parser::CbmlParser;
 use crate::parser::ast::stmt::AnonymousTypeDefStmt;
 use crate::parser::ast::stmt::AsignmentStmt;
 use crate::parser::ast::stmt::Literal;
@@ -18,9 +20,9 @@ use crate::parser::ast::stmt::TypeSignStmtKind;
 use crate::parser::ast::stmt::UseStmt;
 use crate::parser::parser_error::ParserError;
 
-use super::cbml_project::FieldDef;
-use super::cbml_project::TypeInfo;
-
+use super::types::FieldDef;
+use super::types::TypeInfo;
+#[derive(Debug, Clone)]
 pub struct TypedefFile {
     pub file_path: String,
     /// key: type_name
@@ -30,6 +32,8 @@ pub struct TypedefFile {
     pub fields: Vec<FieldDef>,
 
     pub errors: Vec<ParserError>,
+
+    fields_map: HashMap<String, usize>,
 
     /// 解析 ast 时记录正在解析的语句所在的 scope.
     current_scope: Vec<ScopeID>,
@@ -46,10 +50,11 @@ impl TypedefFile {
             errors: Vec::new(),
             current_scope: Vec::new(),
             count: 0,
+            fields_map: HashMap::new(),
         };
 
         if file_path.ends_with(".def.cbml") {
-            f.parse(&file_path);
+            f.parse_file(&file_path);
         } else {
             let e = ParserError {
                 file_path,
@@ -65,11 +70,52 @@ impl TypedefFile {
         return f;
     }
 
-    fn parse(&mut self, path: &str) {
+    pub fn new_from(file_path: String, code: &str) -> Self {
+        let mut f = Self {
+            file_path: file_path.clone(),
+            types: HashMap::new(),
+            fields: Vec::new(),
+            errors: Vec::new(),
+            current_scope: Vec::new(),
+            count: 0,
+            fields_map: HashMap::new(),
+        };
+
+        if file_path.ends_with(".def.cbml") {
+            f.parse_code(code);
+        } else {
+            let e = ParserError {
+                file_path,
+                msg: format!("类型定义文件的文件名需要以 .def.cbml 结尾."),
+                code_location: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            f.errors.push(e);
+        }
+
+        return f;
+    }
+
+    pub fn get_field_def_by_name(&self, name: &str) -> Option<&FieldDef> {
+        let Some(sdf) = self.fields_map.get(name) else {
+            return None;
+        };
+
+        self.fields.get(*sdf)
+    }
+
+    fn parse_file(&mut self, path: &str) {
         use crate::parser::cbml_parser::CbmlParser;
         use std::fs::read_to_string;
 
         let code = read_to_string(path).unwrap();
+        self.parse_code(&code);
+    }
+
+    fn parse_code(&mut self, code: &str) {
+        let path = &self.file_path;
 
         let lexer_result = tokenizer(path, &code).map_err(|e| {
             println!("{:?}", e);
@@ -262,6 +308,17 @@ impl TypedefFile {
         };
 
         self.fields.push(filed_def);
+        // cache field in index map.
+        {
+            let last_index: usize = if self.fields.len() == 0 {
+                0
+            } else {
+                self.fields.len() - 1
+            };
+
+            self.fields_map
+                .insert(struct_field_def_stmt.field_name.clone(), last_index);
+        }
 
         return (struct_field_def_stmt.field_name.clone(), ty);
     }

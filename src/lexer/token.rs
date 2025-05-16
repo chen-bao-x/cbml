@@ -190,6 +190,7 @@ pub struct Position {
     pub column: u32,
 
     /// 在文本中的 index.
+    /// 按字符来计算,  
     pub character_index: usize,
 }
 

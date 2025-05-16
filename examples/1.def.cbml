@@ -1,4 +1,8 @@
 
+
+// adfsdaf
+
+
 aaa: number
 package: {
     name: string default "hello"

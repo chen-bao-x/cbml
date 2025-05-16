@@ -2,6 +2,8 @@ use crate::{
     cbml_value::value::CbmlType, lexer::token::Span, parser::ast::stmt::Literal,
     typecheck::types_for_check::ScopeID,
 };
+
+#[derive(Debug, Clone)]
 pub struct FieldAsign {
     pub name: String,
     pub value: Literal,

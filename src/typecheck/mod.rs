@@ -391,22 +391,22 @@ impl TypeChecker {
                     }
                 }
 
-                if let Some(default_value) = &field_def.default {
-                    let defnied_type = field_def._type.kind.to_cbml_type();
+                // if let Some(default_value) = &field_def.default {
+                //     let defnied_type = field_def._type.kind.to_cbml_type();
 
-                    if !self.is_same_type(&defnied_type, &default_value.kind) {
-                        // 类型错误, 需要 {} found {}
+                //     if !self.is_same_type(&defnied_type, &default_value.kind) {
+                //         // 类型错误, 需要 {} found {}
 
-                        let e = ParserError::err_mismatched_types(
-                            self.file_path.clone(),
-                            field_def.field_name_span.clone(),
-                            &field_def._type.kind.to_cbml_code(0),
-                            &default_value.kind.to_cbml_code(0),
-                        );
-                        result.push(e);
-                        // return Some(vec![e]);
-                    }
-                }
+                //         let e = ParserError::err_mismatched_types(
+                //             self.file_path.clone(),
+                //             field_def.field_name_span.clone(),
+                //             &field_def._type.kind.to_cbml_code(0),
+                //             &default_value.kind.to_cbml_code(0),
+                //         );
+                //         result.push(e);
+                //         // return Some(vec![e]);
+                //     }
+                // }
 
                 {
                     let k = field_def.field_name.clone();
@@ -502,29 +502,29 @@ impl TypeChecker {
                     //     }
                     // };
 
-                    let fields = struct_def
-                        .fields
-                        .iter()
-                        .map(|x| (x.field_name.clone(), x._type.to_cbml_type()))
-                        .collect();
-                    let ty = CbmlType {
-                        kind: CbmlTypeKind::Struct { fields: fields },
-                        // name: Some(struct_name.clone()),
-                    };
+                    // let fields = struct_def
+                    //     .fields
+                    //     .iter()
+                    //     .map(|x| (x.field_name.clone(), x._type.to_cbml_type()))
+                    //     .collect();
+                    // let ty = CbmlType {
+                    //     kind: CbmlTypeKind::Struct { fields: fields },
+                    //     // name: Some(struct_name.clone()),
+                    // };
 
-                    if let Err(_) = self.push_type_def(
-                        struct_name,
-                        ty,
-                        struct_def.name_span.clone(),
-                        self.get_current_scope_id(),
-                    ) {
-                        let e = ParserError::err_type_name_alredy_exits(
-                            self.file_path.clone(),
-                            struct_def.name_span.clone(),
-                            &struct_def.struct_name,
-                        );
-                        result.push(e);
-                    };
+                    // if let Err(_) = self.push_type_def(
+                    //     struct_name,
+                    //     ty,
+                    //     struct_def.name_span.clone(),
+                    //     self.get_current_scope_id(),
+                    // ) {
+                    //     let e = ParserError::err_type_name_alredy_exits(
+                    //         self.file_path.clone(),
+                    //         struct_def.name_span.clone(),
+                    //         &struct_def.struct_name,
+                    //     );
+                    //     result.push(e);
+                    // };
                 }
             }
             StmtKind::EnumDef(enum_def) => {
@@ -592,32 +592,32 @@ impl TypeChecker {
                 {
                     let enum_name = enum_def.enum_name.clone();
 
-                    let fields = enum_def
-                        .fields
-                        .iter()
-                        .map(|x| (x.field_name.clone(), x._type.to_cbml_type()))
-                        .collect();
+                    // let fields = enum_def
+                    //     .fields
+                    //     .iter()
+                    //     .map(|x| (x.field_name.clone(), x._type.to_cbml_type()))
+                    //     .collect();
 
                     // let kind = CbmlTypeKind::Enum { fields: fields };
 
-                    let ty = CbmlType {
-                        kind: CbmlTypeKind::Enum { fields: fields },
-                        // name: Some(enum_name.clone()),
-                    };
+                    // let ty = CbmlType {
+                    //     kind: CbmlTypeKind::Enum { fields: fields },
+                    //     // name: Some(enum_name.clone()),
+                    // };
 
-                    if let Err(_) = self.push_type_def(
-                        enum_name,
-                        ty,
-                        enum_def.name_span.clone(),
-                        self.get_current_scope_id(),
-                    ) {
-                        let e = ParserError::err_type_name_alredy_exits(
-                            self.file_path.clone(),
-                            enum_def.name_span.clone(),
-                            &enum_def.enum_name,
-                        );
-                        result.push(e);
-                    };
+                    // if let Err(_) = self.push_type_def(
+                    //     enum_name,
+                    //     ty,
+                    //     enum_def.name_span.clone(),
+                    //     self.get_current_scope_id(),
+                    // ) {
+                    //     let e = ParserError::err_type_name_alredy_exits(
+                    //         self.file_path.clone(),
+                    //         enum_def.name_span.clone(),
+                    //         &enum_def.enum_name,
+                    //     );
+                    //     result.push(e);
+                    // };
                 }
             }
             // StmtKind::TypeDef(union_def) => {
@@ -1068,17 +1068,17 @@ impl TypeChecker {
             //     auto_generated_type_name
             // }
             TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => {
-                let field_def = anonymous_type_def_stmt.to_cbml_type();
+                // let field_def = anonymous_type_def_stmt.to_cbml_type();
 
                 let auto_generated_type_name =
                     gen_anonymous_type_name(&self.get_current_scope_id(), &enum_name);
 
-                self.push_type_def(
-                    auto_generated_type_name.clone(),
-                    field_def,
-                    anonymous_type_def_stmt.span.clone(),
-                    self.get_current_scope_id(),
-                );
+                // self.push_type_def(
+                //     auto_generated_type_name.clone(),
+                //     field_def,
+                //     anonymous_type_def_stmt.span.clone(),
+                //     self.get_current_scope_id(),
+                // );
 
                 auto_generated_type_name
             }
@@ -1188,17 +1188,17 @@ impl TypeChecker {
             //     auto_generated_type_name
             // }
             TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => {
-                let ty = anonymous_type_def_stmt.to_cbml_type();
+                // let ty = anonymous_type_def_stmt.to_cbml_type();
 
                 let auto_generated_type_name =
                     gen_anonymous_type_name(&self.get_current_scope_id(), &struct_name);
 
-                let re = self.push_type_def(
-                    auto_generated_type_name.clone(),
-                    ty,
-                    anonymous_type_def_stmt.span,
-                    self.get_current_scope_id(),
-                );
+                // let re = self.push_type_def(
+                //     auto_generated_type_name.clone(),
+                //     ty,
+                //     anonymous_type_def_stmt.span,
+                //     self.get_current_scope_id(),
+                // );
 
                 auto_generated_type_name
             }

@@ -5,9 +5,9 @@ pub mod lexer;
 pub mod parser;
 pub mod typecheck;
 
-fn main() {
-    tests::test_parser();
-}
+// fn main() {
+//     tests::test_parser();
+// }
 
 // 在编写时的 错误检查
 // language server
@@ -36,7 +36,7 @@ fn timeit(count: usize, f: fn()) {
     println!("耗时：{:?}", duration);
 }
 
-// #[cfg(test)]
+#[cfg(test)]
 mod tests {
 
     use crate::{
@@ -46,7 +46,7 @@ mod tests {
         typecheck::typecheck,
     };
 
-    // #[test]
+    #[test]
     pub fn test_parser() {
         // /Users/chenbao/GitHub/cbml/examples/1.cmml
 
@@ -100,16 +100,11 @@ mod tests {
             x.report_error(&code);
         });
 
-        asdf.typedef_file.unwrap().fields.iter().for_each(|ref x|{
-            println!("name: {}, scope: {}", x.name, x.scope.0)
-        });
-
-        // asdf.typedef_file.map(|x| {
-        //     x.errors.iter().for_each(|x| {
-        //         x.report_error(&code);
-        //     });
-        //     ()
-        // });
+        asdf.typedef_file
+            .unwrap()
+            .fields
+            .iter()
+            .for_each(|ref x| println!("name: {}, scope: {}", x.name, x.scope.0));
     }
 
     fn test_typedef(path: &str) {
