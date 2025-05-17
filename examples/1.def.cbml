@@ -65,15 +65,35 @@ val: {
     }
 }
 
-// dependencies : [   enum {
-//     ssh({
-//         name : string
-//         git :string
-//         branch:string
-//     }),
-//     version({
-//         name:string
-//         varsion:string
-//     }),
-//   }
-//    ]
+dependencies: [
+    enum {
+        ssh({
+            name: string
+            git: string
+            branch: string
+        })
+        version( {
+            name: string
+            varsion: string
+        })
+    }
+ ]
+enum_1 : enum {
+    ssh({
+        name :string
+        git :string
+        branch :string
+    })
+}
+
+ 
+enum_2 : enum {
+    ssh({
+        name :string
+        git :string
+        branch :string
+    })
+}
+
+
+name : string default "hello"

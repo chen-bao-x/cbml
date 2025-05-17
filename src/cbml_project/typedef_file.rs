@@ -429,7 +429,8 @@ impl TypedefFile {
             crate::parser::ast::stmt::AnonymousTypeDefKind::Array { inner_type } => {
                 let ty = self.parse_type_sign_stmt(
                     inner_type.as_ref(),
-                    &format!("{}{}", field_name, "array_inner"),
+                    // &format!("{}{}", field_name, "array_inner"),
+                    field_name,
                     anony_span.clone(),
                 );
 
@@ -444,10 +445,12 @@ impl TypedefFile {
             crate::parser::ast::stmt::AnonymousTypeDefKind::Enum { fields } => {
                 let mut fieasdfasflds: Vec<(String, CbmlType)> = Vec::new();
 
+                self.into_scope(ScopeID::new(field_name.to_string()));
                 for x in fields {
                     let sadf = self.parse_enum_field_def(x);
                     fieasdfasflds.push(sadf);
                 }
+                self.outgoing_scope();
 
                 return CbmlType {
                     kind: CbmlTypeKind::Enum {

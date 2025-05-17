@@ -1,11 +1,10 @@
-use std::io::SeekFrom;
-
+use super::ast::stmt::AnonymousTypeDefKind;
+use super::ast::stmt::AnonymousTypeDefStmt;
 use super::{
     ParserError,
     ast::stmt::{
-        AnonymousTypeDefKind, AsignmentStmt, CommentStmt, Literal, LiteralKind, Stmt, StmtKind,
-        StructDef, StructFieldDefStmt, TypeDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef,
-        UseStmt,
+        AsignmentStmt, CommentStmt, Literal, LiteralKind, Stmt, StmtKind, StructDef,
+        StructFieldDefStmt, TypeDefStmt, TypeSignStmt, TypeSignStmtKind, UnionDef, UseStmt,
     },
 };
 use crate::{
@@ -321,8 +320,11 @@ impl<'a> CbmlParser<'a> {
             tk::LBracket => {
                 // 匿名数组
                 let l_tok = self.consume(tk::LBracket)?.clone();
+                _ = self.eat_zeor_or_multy(tk::NewLine);
 
                 let inner_type = self.parse_type_sign()?;
+                
+                _ = self.eat_zeor_or_multy(tk::NewLine);
 
                 let r_tok = self.consume(tk::RBracket)?.clone();
 
@@ -417,7 +419,48 @@ impl<'a> CbmlParser<'a> {
 
                 // return Ok(t);
             }
+            tk::Enum => {
+                // 解析匿名 enum
+                let enum_key_word_tok = self.consume(tk::Enum)?;
 
+                _ = self.eat_zeor_or_multy(tk::NewLine);
+                let l_tok = self.consume(tk::LBrace)?.clone();
+                _ = self.eat_zeor_or_multy(tk::NewLine);
+
+                let mut fields: Vec<EnumFieldDef> = vec![];
+                loop {
+                    if let Ok(enum_field) = self.parse_enum_field() {
+                        fields.push(enum_field);
+                        _ = self.eat_zeor_or_multy(tk::NewLine);
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+
+                _ = self.eat_zeor_or_multy(tk::NewLine);
+                let r_tok = self.consume(tk::RBrace)?.clone();
+                _ = self.eat_zeor_or_multy(tk::NewLine);
+
+                let kind = TypeSignStmtKind::Anonymous(AnonymousTypeDefStmt {
+                    kind: AnonymousTypeDefKind::Enum { fields },
+                    node_id: self.gen_node_id(),
+                    span: Span {
+                        start: l_tok.span.start.clone(),
+                        end: r_tok.span.end.clone(),
+                    },
+                });
+
+                let type_sign = TypeSignStmt {
+                    kind: kind,
+                    span: Span {
+                        start: l_tok.span.start,
+                        end: r_tok.span.end,
+                    },
+                    node_id: self.gen_node_id(),
+                };
+                return Ok(type_sign);
+            }
             x => {
                 match x {
                     tk::Pipe | tk::Number(_) | tk::String(_) => {
@@ -543,7 +586,6 @@ impl<'a> CbmlParser<'a> {
 
         //  空数组  [ ]
         if let tk::RBracket = self.peek().kind {
-
             let rbracket = self.consume(tk::RBracket)?;
             let re = Literal {
                 kind: LiteralKind::Array(elements),
@@ -1226,17 +1268,18 @@ impl<'a> CbmlParser<'a> {
     fn parse_enum_field(&mut self) -> Result<EnumFieldDef, ParserError> {
         // enum_field =   identifier LParent typedef RParent newline
 
-        // let field_name_tok = self.consume(tk::Identifier("".into()))?; // identifier
         let field_name_tok = self.consume(tk::Identifier("".into()))?.clone();
 
         if let tk::Identifier(field_name) = field_name_tok.kind.clone() {
+            _ = self.eat_zeor_or_multy(tk::NewLine);
             self.consume(tk::LParen)?; // LParent
+            _ = self.eat_zeor_or_multy(tk::NewLine);
 
             let ty = self.parse_type_sign()?; // typedef
+            _ = self.eat_zeor_or_multy(tk::NewLine);
 
             self.consume(tk::RParen)?;
-
-            self.consume(tk::NewLine)?;
+            self.consume(tk::NewLine)?; // ends.
 
             let field = EnumFieldDef {
                 field_name,

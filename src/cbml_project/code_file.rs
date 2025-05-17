@@ -117,7 +117,6 @@ impl CodeFile {
 
         let code = read_to_string(path).unwrap();
         self.parse_code(&code);
-       
     }
 
     fn parse_code(&mut self, code: &str) {
@@ -237,28 +236,30 @@ impl CodeFile {
 
         self.fields.push(value);
 
+        self.into_scope(ScopeID::new(asignment_stmt.field_name.clone()));
         self.parse_chile_fields(
             &asignment_stmt.value.kind,
             asignment_stmt.field_name.clone(),
         );
+        self.outgoing_scope();
     }
 
     fn parse_chile_fields(&mut self, kind: &LiteralKind, field_name: String) {
         match kind {
             // LiteralKind::Array(literals) => todo!(),
             LiteralKind::Struct(asignment_stmts) => {
-                self.into_scope(ScopeID::new(field_name.clone()));
                 for x in asignment_stmts {
                     self.parse_asignment(x.clone());
                 }
-                self.outgoing_scope();
             }
             LiteralKind::EnumFieldLiteral {
                 field_name: enum_field_name,
                 literal,
                 ..
             } => {
+                self.into_scope(ScopeID::new(enum_field_name.clone()));
                 self.parse_chile_fields(&literal.kind, enum_field_name.clone());
+                self.outgoing_scope();
             }
             LiteralKind::Array(literals) => {
                 for x in literals {
@@ -581,7 +582,8 @@ impl CodeFile {
             let e = ParserError::err_unknow_field(
                 self.file_path.clone(),
                 field.span.clone(),
-                &field.name,
+                // &field.name,
+                &format!("name: {}, scope: {}", field.name, field.scope.0),
             );
 
             return Err(e);
@@ -613,7 +615,6 @@ impl CodeFile {
         let mut seen: HashSet<(String, ScopeID)> = HashSet::new();
         let mut duplicates: Vec<&FieldAsign> = Vec::new();
 
-
         for x in &self.fields {
             if !seen.insert((x.name.clone(), x.scope.clone())) {
                 duplicates.push(&x);
@@ -623,7 +624,12 @@ impl CodeFile {
         let errors: Vec<ParserError> = duplicates
             .iter()
             .map(|x| {
-                ParserError::err_field_alredy_exits(self.file_path.clone(), x.span.clone(), &x.name)
+                // ParserError::err_field_alredy_exits(self.file_path.clone(), x.span.clone(), &x.name)
+                ParserError::err_field_alredy_exits(
+                    self.file_path.clone(),
+                    x.span.clone(),
+                    &format!("name: {}, scope: {}", x.name, x.scope.0),
+                )
             })
             .collect();
 
