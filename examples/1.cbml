@@ -1,13 +1,13 @@
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
 
+// asdfdasf = 88
 
-asdfdasf = 88
 
-haha_field = [
-    {
-        name = ""
-    },
-]
+// haha_field = [
+//     {
+//         name = ""
+//     },
+// ]
 package = {
     edition = " 15245"
     version = "0.1.0"
@@ -41,7 +41,9 @@ enum_2 = ssh({
 // // asdfsadf 
 
 /* /* /* /* /*  sadff */
+
 name = default
+
 age = none
 opt = 23
 haha = {
@@ -76,3 +78,31 @@ tree = {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+val = {
+    name = "string"
+    obj = { 
+        age = 100
+    }
+}
+
+
+
+
+
+
+

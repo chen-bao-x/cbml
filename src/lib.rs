@@ -3,7 +3,6 @@ pub mod cbml_value;
 pub mod formater;
 pub mod lexer;
 pub mod parser;
-pub mod typecheck;
 
 // fn main() {
 //     tests::test_parser();
@@ -43,7 +42,7 @@ mod tests {
         cbml_project::{code_file::CodeFile, typedef_file::TypedefFile},
         dp,
         lexer::tokenizer,
-        typecheck::typecheck,
+        // typecheck::typecheck,
     };
 
     #[test]
@@ -100,9 +99,15 @@ mod tests {
             x.report_error(&code);
         });
 
+        println!("asdf.typedef_file");
         asdf.typedef_file
             .unwrap()
-            .fields
+            .fields_map
+            .iter()
+            .for_each(|ref x| println!("name: {}, scope: {}", x.1.name, x.1.scope.0));
+
+        println!("asdf.fields");
+        asdf.fields
             .iter()
             .for_each(|ref x| println!("name: {}, scope: {}", x.name, x.scope.0));
     }
@@ -154,17 +159,17 @@ mod tests {
 
                 // dp("start typecheck: ");
 
-                let re = typecheck(path.into(), ast);
+                // let re = typecheck(path.into(), ast);
 
-                if re.is_empty() {
-                    dp("没有检查出类型错误.");
-                } else {
-                    // has errors.
-                    re.iter().for_each(|x| {
-                        x.report_error(code);
-                        // dp(format!("{:?}", x));
-                    });
-                }
+                // if re.is_empty() {
+                //     dp("没有检查出类型错误.");
+                // } else {
+                //     // has errors.
+                //     re.iter().for_each(|x| {
+                //         x.report_error(code);
+                //         // dp(format!("{:?}", x));
+                //     });
+                // }
             }
             Err(e) => {
                 e.iter().for_each(|s| {

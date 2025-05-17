@@ -24,24 +24,37 @@ impl ParserError {
         }
     }
 
-    pub fn lookup<'a>(&self, source_code: &'a str) -> &'a str {
+    pub fn lookup<'a>(&self, source_code: &'a str) -> String {
         // 返回 (行号, 列号, 该行文本)
         // let line_idx = self.code_location.start.character_index;
+
+        let charts: Vec<char> = source_code.chars().collect();
 
         let line_start = if self.code_location.start.character_index == 0 {
             0
         } else {
-            self.code_location.start.character_index - 1
+            self.code_location.start.character_index
         };
 
         // let line_end = self.code_location.end.character_index;
-        let line_end = source_code[line_start..]
-            .find('\n')
-            .map(|i| line_start + i)
-            .unwrap_or(source_code.len());
+        let line_end = if self.code_location.end.character_index == 0 {
+            0
+        } else {
+            self.code_location.end.character_index
+        };
+        // let sadf = charts.get(line_start..).unwrap();
+        // for x in sadf {}
 
-        let line_text = &source_code[line_start..line_end];
-        return line_text;
+        let line_text = charts.get(line_start..line_end).unwrap_or(&[]);
+
+        // let line_text = &source_code[line_start..line_end];
+        let mut re = String::new();
+
+        for x in line_text {
+            re.push(*x);
+        }
+
+        return re;
 
         // (line_idx + 1, col + 1, line_text)
     }

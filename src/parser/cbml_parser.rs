@@ -527,7 +527,7 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
-    fn parse_array_literal(&mut self) -> Result<Vec<LiteralKind>, ParserError> {
+    fn parse_array_literal(&mut self) -> Result<Vec<Literal>, ParserError> {
         // array_literal = LBracket elements Coma{0,1} RBracket
         // elements = Newline{0,} first_element tail_elements{0,}
         // first_element = Newline{0,} literal
@@ -537,15 +537,23 @@ impl<'a> CbmlParser<'a> {
         // RBracket = "]"
         // Coma = ","
 
-        self.consume(tk::LBracket)?; // LBracket
+        let lbracket = self.consume(tk::LBracket)?.clone(); // LBracket
 
-        let mut elements: Vec<LiteralKind> = Vec::<LiteralKind>::new();
+        let mut elements: Vec<Literal> = Vec::new();
 
+        //  空数组  [ ]
         if let tk::RBracket = self.peek().kind {
-            //  空数组  [ ]
 
-            self.consume(tk::RBracket)?;
-            return Ok(elements);
+            let rbracket = self.consume(tk::RBracket)?;
+            let re = Literal {
+                kind: LiteralKind::Array(elements),
+                span: Span {
+                    start: lbracket.span.start,
+                    end: rbracket.span.end.clone(),
+                },
+            };
+
+            return Ok(vec![re]);
         }
 
         {
@@ -563,7 +571,7 @@ impl<'a> CbmlParser<'a> {
                 match s {
                     State::NeedLiteral => {
                         let literal = self.parse_literal()?;
-                        elements.push(literal.kind);
+                        elements.push(literal);
 
                         s = State::NeedComa;
                     }
@@ -1259,7 +1267,7 @@ impl<'a> CbmlParser<'a> {
 
             return Ok(LiteralKind::EnumFieldLiteral {
                 field_name: name,
-                literal: lit.kind.into(),
+                literal: lit.into(),
                 span: name_tok.span, // span: Span {
                                      //     start: l_tok.span.start,
                                      //     end: r_tok.span.end,

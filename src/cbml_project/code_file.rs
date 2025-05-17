@@ -1,9 +1,9 @@
 use super::{
     typedef_file::TypedefFile,
-    types::{FieldAsign, FieldDef, TypeInfo},
+    types::{FieldAsign, FieldDef, ScopeID, TypeInfo},
 };
 use crate::{
-    cbml_value::value::{CbmlType, CbmlTypeKind, CbmlValue, ToCbmlValue},
+    cbml_value::value::{CbmlType, CbmlTypeKind, ToCbmlValue},
     formater::ToCbmlCode,
     lexer::{
         token::{Position, Span},
@@ -14,12 +14,8 @@ use crate::{
         ast::stmt::{Literal, LiteralKind, Stmt},
         parser_error::ParserError,
     },
-    typecheck::types_for_check::ScopeID,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    default, path,
-};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct CodeFile {
@@ -33,6 +29,9 @@ pub struct CodeFile {
     pub errors: Vec<ParserError>,
 
     last_line_span: Span,
+    field_id: usize,
+    /// 解析 ast 时记录正在解析的语句所在的 scope.
+    _current_scope: Vec<ScopeID>,
 }
 
 impl CodeFile {
@@ -44,6 +43,8 @@ impl CodeFile {
             typedef_file: None,
             errors: Vec::new(),
             last_line_span: Span::empty(),
+            field_id: 0,
+            _current_scope: Vec::new(),
         };
 
         if (&file_path).ends_with(".def.cbml") {
@@ -73,6 +74,8 @@ impl CodeFile {
             typedef_file: None,
             errors: Vec::new(),
             last_line_span: Span::empty(),
+            field_id: 0,
+            _current_scope: Vec::new(),
         };
 
         if (&file_path).ends_with(".def.cbml") {
@@ -109,38 +112,12 @@ impl CodeFile {
     }
 
     fn parse_file(&mut self, path: &str) {
-        use crate::parser::cbml_parser::CbmlParser;
+        // use crate::parser::cbml_parser::CbmlParser;
         use std::fs::read_to_string;
 
         let code = read_to_string(path).unwrap();
         self.parse_code(&code);
-        // let lexer_result = tokenizer(path, &code);
-
-        // let tokens = match lexer_result {
-        //     Ok(t) => t,
-        //     Err(e) => {
-        //         self.errors.push(e);
-        //         return ();
-        //     }
-        // };
-
-        // if let Some(tok) = tokens.last() {
-        //     self.last_token_span = tok.span.clone();
-        // }
-
-        // // dp(format!("tokens: {:?}", tokens));
-
-        // let mut parser = CbmlParser::new(path.to_string(), &tokens);
-        // let parser_result = parser.parse();
-
-        // match parser_result {
-        //     Ok(ast) => {
-        //         self.parse_ast(ast);
-        //     }
-        //     Err(mut errs) => {
-        //         self.errors.append(&mut errs);
-        //     }
-        // };
+       
     }
 
     fn parse_code(&mut self, code: &str) {
@@ -251,12 +228,46 @@ impl CodeFile {
 
     fn parse_asignment(&mut self, asignment_stmt: crate::parser::ast::stmt::AsignmentStmt) {
         let value = FieldAsign {
-            name: asignment_stmt.field_name,
-            value: asignment_stmt.value,
+            name: asignment_stmt.field_name.clone(),
+            value: asignment_stmt.value.clone(),
             span: asignment_stmt.field_name_span,
+            id: self.new_field_id(),
+            scope: self.get_current_scope_id(),
         };
 
         self.fields.push(value);
+
+        self.parse_chile_fields(
+            &asignment_stmt.value.kind,
+            asignment_stmt.field_name.clone(),
+        );
+    }
+
+    fn parse_chile_fields(&mut self, kind: &LiteralKind, field_name: String) {
+        match kind {
+            // LiteralKind::Array(literals) => todo!(),
+            LiteralKind::Struct(asignment_stmts) => {
+                self.into_scope(ScopeID::new(field_name.clone()));
+                for x in asignment_stmts {
+                    self.parse_asignment(x.clone());
+                }
+                self.outgoing_scope();
+            }
+            LiteralKind::EnumFieldLiteral {
+                field_name: enum_field_name,
+                literal,
+                ..
+            } => {
+                self.parse_chile_fields(&literal.kind, enum_field_name.clone());
+            }
+            LiteralKind::Array(literals) => {
+                for x in literals {
+                    self.parse_chile_fields(&x.kind, field_name.clone());
+                }
+            }
+
+            _ => {}
+        };
     }
 
     /// returns: (field_name, type)
@@ -319,6 +330,30 @@ impl CodeFile {
 
         self.errors.push(e);
     }
+
+    fn new_field_id(&mut self) -> usize {
+        self.field_id += 1;
+        return self.field_id;
+    }
+
+    fn get_current_scope_id(&self) -> ScopeID {
+        let mut re = String::new();
+
+        for x in &self._current_scope {
+            re.push_str("::");
+            re.push_str(&x.0);
+        }
+
+        return ScopeID::new(re);
+    }
+
+    fn into_scope(&mut self, scope_id: ScopeID) {
+        self._current_scope.push(scope_id);
+    }
+
+    fn outgoing_scope(&mut self) {
+        let _ = self._current_scope.pop();
+    }
 }
 
 // error check
@@ -380,31 +415,64 @@ impl CodeFile {
         }
     }
 
-    fn is_same_type(&self, need_type: &CbmlType, found: &LiteralKind) -> bool {
-        if let LiteralKind::Default = found {
+    fn type_check_for_array(
+        &mut self,
+        inner_type: Box<CbmlType>,
+        found: &LiteralKind,
+        span: Span,
+    ) -> Result<(), ParserError> {
+        //
+        match found {
+            LiteralKind::Array(literals) => {
+                literals.iter().all(|x| self.is_same_type(&inner_type, x));
+
+                for x in literals {
+                    self.is_same_type(&inner_type, x);
+                }
+
+                Ok(())
+            }
+            LiteralKind::Default => Ok(()),
+            _ => {
+                let e = ParserError::err_mismatched_types(
+                    self.file_path.clone(),
+                    span,
+                    &inner_type.to_cbml_code(0),
+                    &found.to_cbml_code(0),
+                );
+                Err(e)
+            }
+        }
+    }
+
+    // fn is_same_type(&self, need_type: &CbmlType, found: &LiteralKind) -> bool {
+    fn is_same_type(&self, need_type: &CbmlType, found: &Literal) -> bool {
+        let kind = &found.kind;
+        if let LiteralKind::Default = kind {
             return true;
         }
 
         match need_type.kind.clone() {
-            CbmlTypeKind::String => match found {
+            CbmlTypeKind::String => match kind {
                 LiteralKind::String { .. } => true,
                 LiteralKind::Default => true,
                 _ => false,
             },
-            CbmlTypeKind::Number => match found {
+            CbmlTypeKind::Number => match kind {
                 LiteralKind::Number(_) => true,
                 LiteralKind::Default => true,
                 _ => false,
             },
-            CbmlTypeKind::Bool => match found {
+            CbmlTypeKind::Bool => match kind {
                 LiteralKind::Boolean(_) => true,
                 LiteralKind::Default => true,
                 _ => false,
             },
             CbmlTypeKind::Any => true,
-            CbmlTypeKind::Array { inner_type, .. } => {
+            CbmlTypeKind::Array { inner_type } => {
+                // return self.type_check_for_array(inner_type, found);
                 //
-                match found {
+                match kind {
                     LiteralKind::Array(literals) => {
                         return literals.iter().all(|x| self.is_same_type(&inner_type, x));
                     }
@@ -422,7 +490,7 @@ impl CodeFile {
                     });
                 }
 
-                match found {
+                match kind {
                     LiteralKind::Struct(asignment_stmts) => {
                         if asignment_stmts.len() != fields.len() {
                             // 结构体字面量数量不同,
@@ -435,10 +503,10 @@ impl CodeFile {
 
                         // let mut asignment_stmts = asignment_stmts.clone();
 
-                        let mut key_value_pairs: Vec<(String, LiteralKind)> = Vec::new();
+                        let mut key_value_pairs: Vec<(String, Literal)> = Vec::new();
                         {
                             for x in asignment_stmts {
-                                key_value_pairs.push((x.field_name.clone(), x.value.kind.clone()));
+                                key_value_pairs.push((x.field_name.clone(), x.value.clone()));
                             }
                         }
 
@@ -470,7 +538,7 @@ impl CodeFile {
                 inner_type,
                 // span: _span,
             } => {
-                return match found {
+                return match kind {
                     LiteralKind::LiteralNone => true,
                     _ => self.is_same_type(&inner_type, found),
                 };
@@ -478,7 +546,7 @@ impl CodeFile {
             CbmlTypeKind::Union { allowed_values } => {
                 allowed_values.contains(&found.to_cbml_value())
             }
-            CbmlTypeKind::Enum { fields } => match found {
+            CbmlTypeKind::Enum { fields } => match kind {
                 LiteralKind::EnumFieldLiteral {
                     field_name,
                     literal,
@@ -521,14 +589,18 @@ impl CodeFile {
 
         // todo: 一次检查一个字段, 如果这个字段的类型是 结构体, 则逐一检查每一个字段,
 
-        if self.is_same_type(&type_info.ty, &field.value.kind) {
+        // note: 做类型检查时, 需要先确定 top level field 的类型, 里面的字段类型才能被确定.
+
+        // 匹配 top level field 的类型.
+        if self.is_same_type(&type_info.ty, &field.value) {
             return Ok(());
         } else {
+            // 如果是结构体, 匹配里面每一个字段的类型, 找到出错的那个字段.
+
             let e = ParserError::err_mismatched_types(
                 self.file_path.clone(),
                 field.span.clone(),
-                // &type_info.ty.to_cbml_code(0),
-                &type_info.name,
+                &type_info.ty.to_cbml_code(0),
                 &field.value.kind.to_cbml_code(0),
             );
 
@@ -538,11 +610,12 @@ impl CodeFile {
 
     // 字段重复检查, 一个字段只需要赋值一次.
     fn check_duplicated_file_field_name(&mut self) {
-        let mut seen: HashSet<&String> = HashSet::new();
+        let mut seen: HashSet<(String, ScopeID)> = HashSet::new();
         let mut duplicates: Vec<&FieldAsign> = Vec::new();
 
+
         for x in &self.fields {
-            if !seen.insert(&x.name) {
+            if !seen.insert((x.name.clone(), x.scope.clone())) {
                 duplicates.push(&x);
             }
         }
@@ -587,7 +660,7 @@ impl CodeFile {
         };
 
         for x in &self.fields {
-            let sadf = def_file.get_field_def_by_name(&x.name);
+            let sadf = def_file.get_field_def_by_name(x.name.clone(), x.scope.clone());
             match sadf {
                 Some(f) => {
                     continue;
@@ -610,12 +683,12 @@ impl CodeFile {
 
 impl CodeFile {
     /// 获取字段的定义.
-    pub fn get_field_def(&self, field_name: &String) -> Option<&FieldDef> {
+    pub fn get_field_def(&self, field_name: &String, scope: ScopeID) -> Option<&FieldDef> {
         let Some(def_file) = &self.typedef_file else {
             return None;
         };
 
-        let asdf = def_file.fields.iter().find(|x| &x.name == field_name);
+        let asdf = def_file.fields_map.get(&(field_name.clone(), scope));
 
         return asdf;
     }
@@ -623,15 +696,13 @@ impl CodeFile {
     /// 获取字段定义的类型.
     /// todo: 如何知道这个 field 是 top level field 还是某个结构体的字段?
     pub fn get_field_defined_type(&self, field: &FieldAsign) -> Option<&TypeInfo> {
-        let Some(def_file) = &self.typedef_file else {
+        let Some(field_def) = self.get_field_def(&field.name, field.scope.clone()) else {
             return None;
         };
 
-        let Some(field_def) = self.get_field_def(&field.name) else {
-            return None;
-        };
+        return Some(&field_def.type_);
 
-        return def_file.types.get(&field_def.type_sign);
+        // return def_file.types.get(&field_def.type_sign);
     }
 
     /// 获取定义了却并未赋值的 top level field.
