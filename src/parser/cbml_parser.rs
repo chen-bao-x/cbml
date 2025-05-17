@@ -155,9 +155,9 @@ impl<'a> CbmlParser<'a> {
                         self.file_path.clone(),
                         format!(
                             "need {:?} or {:?}, but found {:?}",
-                            tk::Asign,
-                            tk::Colon,
-                            next_tok.kind
+                            tk::Asign.to_cbml_code(),
+                            tk::Colon.to_cbml_code(),
+                            next_tok.kind.to_cbml_code()
                         ),
                         next_tok.span.clone(),
                     ));
@@ -204,7 +204,10 @@ impl<'a> CbmlParser<'a> {
                 // todo!();
                 return Err(ParserError::new(
                     self.file_path.clone(),
-                    format!("parse_statement error: unkonow token {:?}", tok),
+                    format!(
+                        "parse_statement error: unkonow token {:?}",
+                        tok.to_cbml_code()
+                    ),
                     self.peek().span.clone(),
                 ));
             }
@@ -323,7 +326,7 @@ impl<'a> CbmlParser<'a> {
                 _ = self.eat_zeor_or_multy(tk::NewLine);
 
                 let inner_type = self.parse_type_sign()?;
-                
+
                 _ = self.eat_zeor_or_multy(tk::NewLine);
 
                 let r_tok = self.consume(tk::RBracket)?.clone();
@@ -563,7 +566,10 @@ impl<'a> CbmlParser<'a> {
 
                 return Err(ParserError::new(
                     self.file_path.clone(),
-                    format!("parse_type_sign error: unkonow token {:?}", tok),
+                    format!(
+                        "parse_type_sign error: unkonow token {:?}",
+                        tok.kind.to_cbml_code()
+                    ),
                     tok.span.clone(),
                 ));
             }
@@ -797,11 +803,9 @@ impl<'a> CbmlParser<'a> {
                     x => {
                         return Err(ParserError::new(
                             self.file_path.clone(),
-                            format!("parse_literal error: unkonow token {:?}", x),
+                            format!("parse_literal error: unkonow token {:?}", x.to_cbml_code()),
                             tok.span,
                         ));
-                        // println!("{:?}", self.peek());
-                        // todo!();
                     }
                 }
             }
@@ -811,7 +815,10 @@ impl<'a> CbmlParser<'a> {
 
                 return Err(ParserError::new(
                     self.file_path.clone(),
-                    format!("parse_literal error: unkonow token {:?}", tok),
+                    format!(
+                        "parse_literal error: unkonow token {:?}",
+                        tok.kind.to_cbml_code()
+                    ),
                     tok.span,
                 ));
             }
@@ -857,7 +864,10 @@ impl<'a> CbmlParser<'a> {
 
             return Err(ParserError::new(
                 self.file_path.clone(),
-                format!("parse_asignment error: unkonow token {:?}", self.peek()),
+                format!(
+                    "parse_asignment error: unkonow token {:?}",
+                    self.peek().kind.to_cbml_code()
+                ),
                 self.peek().span.clone(),
             ));
         };
@@ -926,7 +936,10 @@ impl<'a> CbmlParser<'a> {
             // todo!();
             return Err(ParserError::new(
                 self.file_path.clone(),
-                format!("parse_field_def error: unkonow token {:?}", self.peek()),
+                format!(
+                    "parse_field_def error: unkonow token {:?}",
+                    self.peek().kind.to_cbml_code()
+                ),
                 self.peek().span.clone(),
             ));
         }
@@ -1096,7 +1109,7 @@ impl<'a> CbmlParser<'a> {
                 format!(
                     "parse_statement error: need {:?}, but found token {:?}",
                     tk::String("".into()),
-                    self.peek()
+                    self.peek().kind.to_cbml_code()
                 ),
                 self.peek().span.clone(),
             ));
@@ -1212,8 +1225,8 @@ impl<'a> CbmlParser<'a> {
                 self.file_path.clone(),
                 format!(
                     "parse_statement error: need {:?}, but found token {:?}",
-                    tk::LParen,
-                    self.peek()
+                    tk::LParen.to_cbml_code(),
+                    self.peek().kind.to_cbml_code()
                 ),
                 self.peek().span.clone(),
             ));
@@ -1229,7 +1242,7 @@ impl<'a> CbmlParser<'a> {
                 format!(
                     "parse_statement error: need {:?}, but found token {:?}",
                     tk::Identifier("".into()),
-                    self.peek()
+                    self.peek().kind.to_cbml_code()
                 ),
                 self.peek().span.clone(),
             ));
@@ -1364,9 +1377,9 @@ impl<'a> CbmlParser<'a> {
             Err(ParserError::new(
                 self.file_path.clone(),
                 format!(
-                    "Expected token: TokenKind::{:?}, but found: TokenKind::{:?}",
-                    kind,
-                    self.peek().kind
+                    "Expected token: {:?}, but found: {:?}",
+                    kind.to_cbml_code(),
+                    self.peek().kind.to_cbml_code()
                 ),
                 self.peek().span.clone(),
             ))
@@ -1420,7 +1433,11 @@ impl<'a> CbmlParser<'a> {
             _ => {
                 return Err(ParserError::new(
                     self.file_path.clone(),
-                    format!("need: {:?}, but found: {:?}", tk::NewLine, self.peek()),
+                    format!(
+                        "need: {:?}, but found: {:?}",
+                        tk::NewLine.to_cbml_code(),
+                        self.peek().kind.to_cbml_code()
+                    ),
                     self.peek().span.clone(),
                 ));
             }
@@ -1451,7 +1468,7 @@ mod tests {
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
 
-        let tokens = tokenizer(path, &code).unwrap();
+        let tokens = tokenizer(path, &code).tokens;
 
         // dp(format!("tokens: {:?}", tokens));
 

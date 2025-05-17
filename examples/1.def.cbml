@@ -1,7 +1,9 @@
 // adfsdaf
 
 aaa: number
-package: {
+package: { 
+    
+        asdf: string
     name: string default "hello"
     version: string
     edition: string

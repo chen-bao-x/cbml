@@ -103,20 +103,10 @@ impl TypedefFile {
     fn parse_code(&mut self, code: &str) {
         let path = &self.file_path;
 
-        let lexer_result = tokenizer(path, &code).map_err(|e| {
-            println!("{:?}", e);
-            return e;
-        });
+        let lexer_result = tokenizer(path, &code);
 
-        let tokens = match lexer_result {
-            Ok(t) => t,
-            Err(e) => {
-                self.errors.push(e);
-                return ();
-            }
-        };
-
-        // dp(format!("tokens: {:?}", tokens));
+        self.errors.extend(lexer_result.errors);
+        let tokens = lexer_result.tokens;
 
         let mut parser = CbmlParser::new(path.to_string(), &tokens);
         let parser_result = parser.parse();
@@ -245,7 +235,6 @@ impl TypedefFile {
             type_id: self.gen_type_id(),
         };
 
-        // struct_field_def_stmt._type;
         let filed_def = FieldDef {
             name: struct_field_def_stmt.field_name.clone(),
             type_sign: String::new(),

@@ -131,18 +131,13 @@ mod tests {
     fn dsafdasfsadf(path: &str, code: &str) {
         use crate::parser::cbml_parser::CbmlParser;
 
-        let lexer_result = tokenizer(path, code).map_err(|e| {
-            println!("{:?}", e);
-            return e;
+        let lexer_result = tokenizer(path, code);
+        
+        lexer_result.errors.iter().for_each(|x| {
+            println!("{}", x.lookup(code));
         });
 
-        let tokens = match lexer_result {
-            Ok(t) => t,
-            Err(e) => {
-                println!("{:?}", e);
-                return ();
-            }
-        };
+        let tokens = lexer_result.tokens;
 
         // dp(format!("tokens: {:?}", tokens));
 

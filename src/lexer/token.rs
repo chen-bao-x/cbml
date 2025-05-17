@@ -140,6 +140,51 @@ impl TokenKind {
             _ => false,
         }
     }
+    pub fn to_cbml_code(&self) -> String {
+        let a = match self {
+            TokenKind::Any => "any",
+            TokenKind::Asign => "=",
+            TokenKind::BooleanTy => "bool",
+            TokenKind::Colon => ":",
+            TokenKind::Comma => ",",
+            TokenKind::String(n) => &format!("{}", n),
+            TokenKind::Number(n) => &format!("{}", n),
+            TokenKind::Identifier(n) => &format!("{}", n),
+            TokenKind::Invalid(n) => &format!("{}", n),
+            TokenKind::LineComment(n) => &format!("{}", n),
+            TokenKind::BlockComment(n) => &format!("{}", n),
+            TokenKind::DocComment(n) => &format!("{}", n),
+            TokenKind::LParen => "(",
+            TokenKind::RParen => ")",
+            TokenKind::LBracket => "[",
+            TokenKind::RBracket => "]",
+            TokenKind::LBrace => "{",
+            TokenKind::RBrace => "}",
+            // TokenKind::Comma => "",
+            // TokenKind::Colon => "",
+            TokenKind::Pipe => "|",
+            TokenKind::QuestionMark => "?",
+            // TokenKind::Asign => "",
+            TokenKind::NewLine => "\n",
+            TokenKind::True => "true",
+            TokenKind::False => "false",
+            TokenKind::TkNone => "none",
+            // TokenKind::Any => "",
+            TokenKind::Struct => "struct",
+            TokenKind::Union => "union",
+            TokenKind::Todo => "todo",
+            TokenKind::Use => "use",
+            TokenKind::Default => "default",
+            TokenKind::StringTy => "string",
+            TokenKind::NumberTy => "number",
+
+            TokenKind::Enum => "enum",
+            TokenKind::EOF => "",
+            TokenKind::DoubleQuote => "\"",
+        };
+
+        return format!("{}", a);
+    }
 }
 
 #[allow(dead_code)]

@@ -2,8 +2,8 @@ use crate::parser::parser_error::ParserError;
 
 pub mod lexer;
 pub mod token;
-pub fn tokenizer(file_path: &str, code: &str) -> Result<Vec<token::Token>, ParserError> {
+pub fn tokenizer(file_path: &str, code: &str) -> crate::lexer::lexer::LexerResult {
     let mut lexer = lexer::Lexer::new(file_path, code);
-    let tokens = lexer.tokenize()?;
-    return Ok(tokens);
+    let re = lexer.tokenize();
+    return re;
 }

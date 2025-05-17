@@ -141,14 +141,14 @@ impl CodeFile {
         }
 
         let lexer_result = tokenizer(&self.file_path, &code);
-
-        let tokens = match lexer_result {
-            Ok(t) => t,
-            Err(e) => {
-                self.errors.push(e);
-                return ();
-            }
-        };
+        let tokens =  lexer_result.tokens;
+        // let tokens = match lexer_result {
+        //     Ok(t) => t,
+        //     Err(e) => {
+        //         self.errors.push(e);
+        //         return ();
+        //     }
+        // };
 
         // dp(format!("tokens: {:?}", tokens));
 
