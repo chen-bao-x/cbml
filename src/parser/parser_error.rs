@@ -1,6 +1,6 @@
 use std::default;
 
-use crate::lexer::token::Span;
+use crate::{cbml_project::types::FieldDef, lexer::token::Span};
 
 use super::{StmtKind, ast::stmt::AsignmentStmt};
 
@@ -8,9 +8,13 @@ use super::{StmtKind, ast::stmt::AsignmentStmt};
 pub struct ParserError {
     pub file_path: String,
     pub msg: String,
-    pub code_location: Span,
+    pub span: Span,
     pub note: Option<String>,
     pub help: Option<String>,
+
+    /// error code 可以用来给 language server 自动修复和自动补全.
+    ///
+    pub error_code: Option<u32>,
 }
 
 impl ParserError {
@@ -18,9 +22,10 @@ impl ParserError {
         Self {
             file_path: file_path,
             msg: message,
-            code_location: span,
+            span,
             note: None,
             help: None,
+            error_code: None,
         }
     }
 
@@ -30,17 +35,17 @@ impl ParserError {
 
         let charts: Vec<char> = source_code.chars().collect();
 
-        let line_start = if self.code_location.start.character_index == 0 {
+        let line_start = if self.span.start.character_index == 0 {
             0
         } else {
-            self.code_location.start.character_index
+            self.span.start.character_index
         };
 
         // let line_end = self.code_location.end.character_index;
-        let line_end = if self.code_location.end.character_index == 0 {
+        let line_end = if self.span.end.character_index == 0 {
             0
         } else {
-            self.code_location.end.character_index
+            self.span.end.character_index
         };
         // let sadf = charts.get(line_start..).unwrap();
         // for x in sadf {}
@@ -61,8 +66,8 @@ impl ParserError {
 
     pub fn report_error(&self, source_code: &str) {
         let (line, col, line_text) = (
-            self.code_location.start.line,
-            self.code_location.start.column,
+            self.span.start.line,
+            self.span.start.column,
             self.lookup(source_code),
         );
 
@@ -83,9 +88,10 @@ impl ParserError {
 impl default::Default for ParserError {
     fn default() -> Self {
         Self {
+            error_code: None,
             file_path: Default::default(),
             msg: Default::default(),
-            code_location: Span {
+            span: Span {
                 start: crate::lexer::token::Position {
                     line: 0,
                     column: 0,
@@ -104,32 +110,80 @@ impl default::Default for ParserError {
 }
 
 impl ParserError {
+    
+    /// 0000
+    pub fn err_has_fields_unasigned(
+        file_path: String,
+        unasigned_fields: Vec<&FieldDef>,
+        span: Span,
+    ) -> Self {
+        let mut sdaf = String::new();
+
+        for x in &unasigned_fields {
+            sdaf.push_str(&x.name);
+            sdaf.push_str(", ");
+        }
+
+        Self {
+            error_code: Some(0000),
+            file_path,
+            msg: format!("还有 {} 个字段未赋值: {}", unasigned_fields.len(), sdaf),
+            span: span,
+            note: None,
+            help: None,
+        }
+    }
+
+    /// 0001
     pub fn err_cannot_open_file(
         source_code_file_path: String,
         target_file_path: &str,
         span: Span,
         err: std::io::Error,
     ) -> Self {
-        Self::new(
-            source_code_file_path,
-            format!("cannot open file: {:?}\n{}", target_file_path, err),
+        Self {
+            file_path: source_code_file_path,
+            msg: format!("cannot open file: {:?}\n{}", target_file_path, err),
             span,
-        )
-    }
-    pub fn err_cannot_find_type(file_path: String, span: Span, type_name: &str) -> ParserError {
-        Self::new(
-            file_path,
-            format!("connot find type `{}` ", type_name),
-            span,
-        )
+            note: None,
+            help: None,
+            error_code: Some(0001),
+        }
     }
 
+    /// 0002
+    pub fn err_cannot_find_type(file_path: String, span: Span, type_name: &str) -> ParserError {
+        Self {
+            error_code: Some(0002),
+            file_path,
+            msg: format!("connot find type `{}` ", type_name),
+            span,
+            note: None,
+            help: None,
+        }
+        // Self::new(
+        //     file_path,
+        //     format!("connot find type `{}` ", type_name),
+        //     span,
+        // )
+    }
+
+    /// 0003
     pub fn err_unknow_field(file_path: String, span: Span, field_name: &str) -> Self {
         // TypeCheckedResult::Error(format!("unknow field `{}` ", field_name))
 
-        Self::new(file_path, format!("unknow field `{}` ", field_name), span)
+        // Self::new(file_path, format!("unknow field `{}` ", field_name), span)
+        Self {
+            error_code: Some(0003),
+            file_path,
+            msg: format!("unknow field `{}` ", field_name),
+            span,
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0004
     pub fn err_mismatched_types(
         file_path: String,
         span: Span,
@@ -142,24 +196,55 @@ impl ParserError {
         //     expected, found
         // ))
 
-        Self::new(
+        // Self::new(
+        //     file_path,
+        //     format!(
+        //         "mismatched types, expected `{}` found  `{}` ",
+        //         expected, found
+        //     ),
+        //     span,
+        // )
+
+        Self {
+            error_code: Some(0004),
             file_path,
-            format!(
+            msg: format!(
                 "mismatched types, expected `{}` found  `{}` ",
                 expected, found
             ),
             span,
-        )
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0005
     pub fn err_union_duplicated_item(file_path: String, span: Span, item: &str) -> Self {
-        Self::new(file_path, format!("union duplicated item: {}", item), span)
+        // Self::new(file_path, format!("union duplicated item: {}", item), span)
+        Self {
+            error_code: Some(0005),
+            file_path,
+            msg: format!("union duplicated item: {}", item),
+            span,
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0006
     pub fn err_use_can_only_def_onece(file_path: String, span: Span) -> Self {
-        Self::new(file_path, format!("use can only def onece"), span)
+        // Self::new(file_path, format!("use can only def onece"), span)
+        Self {
+            error_code: Some(0006),
+            file_path,
+            msg: format!("use can only def onece"),
+            span,
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0007
     pub fn err_stmt_not_allow_in_current_scope(
         file_path: String,
         span: Span,
@@ -167,49 +252,91 @@ impl ParserError {
     ) -> Self {
         // TypeCheckedResult::Error(format!("stmt not allow in current scope: {:?}", stmt))
 
-        Self::new(
+        // Self::new(
+        //     file_path,
+        //     format!("stmt not allow in current scope: {:?}", stmt),
+        //     span,
+        // )
+        Self {
+            error_code: Some(0007),
             file_path,
-            format!("stmt not allow in current scope: {:?}", stmt),
+            msg: format!("stmt not allow in current scope: {:?}", stmt),
             span,
-        )
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0008
     pub fn err_field_alredy_exits(file_path: String, span: Span, field_name: &str) -> Self {
-        Self::new(
+        // Self::new(
+        //     file_path,
+        //     format!("field `{}` alredy exit", field_name),
+        //     span,
+        // )
+
+        Self {
+            error_code: Some(0008),
             file_path,
-            format!("field `{}` alredy exit", field_name),
+            msg: format!("field `{}` alredy exit", field_name),
             span,
-        )
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0009
     pub fn err_type_name_alredy_exits(file_path: String, span: Span, type_name: &str) -> Self {
-        Self::new(
+        // Self::new(
+        //     file_path,
+        //     format!("type name `{}` alredy exit", type_name),
+        //     span,
+        // )
+
+        Self {
+            error_code: Some(0009),
             file_path,
-            format!("type name `{}` alredy exit", type_name),
+            msg: format!("type name `{}` alredy exit", type_name),
             span,
-        )
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0010
     pub fn err_filed_alredy_asignment(
         file_path: String,
         span: Span,
         asign: &AsignmentStmt,
     ) -> Self {
-        Self::new(
+        // Self::new(
+        //     file_path,
+        //     format!("field `{}` alredy asignmented", asign.field_name),
+        //     span,
+        // )
+
+        Self {
+            error_code: Some(0010),
             file_path,
-            format!("field `{}` alredy asignmented", asign.field_name),
+            msg: format!("field `{}` alredy asignmented", asign.field_name),
             span,
-        )
+            note: None,
+            help: None,
+        }
     }
 
+    /// 0011
     pub fn err_this_field_donot_have_default_value(
         file_path: String,
         literal_kind_defal_token_span: Span,
     ) -> Self {
-        Self::new(
+        Self {
+            error_code: Some(0011),
             file_path,
-            format!("this field donot have default value"),
-            literal_kind_defal_token_span,
-        )
+            msg: format!("this field donot have default value"),
+            span: literal_kind_defal_token_span,
+            note: None,
+            help: None,
+        }
     }
 }

@@ -1,14 +1,21 @@
+
+
 a = "hello"// 换行符
 b = "asdf
 asdfasdf
 asdf
 asd
+
+
 f
 asdf
 a
 sdf
-\\{10ff}
+\u{10ff}
 sadf"// \t
+
+
+
 c = "asdfdsa\\f"// 单引号
 d = "''''"// \\ -> \
 e = "\\"// \" -> "

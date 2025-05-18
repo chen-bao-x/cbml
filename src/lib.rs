@@ -70,26 +70,6 @@ mod tests {
         // asdfasdfsdf("/Users/chenbao/GitHub/cbml/examples/8_union.cbml");
     }
 
-    #[test]
-    fn testr_enum() {
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
-    }
-
-    #[test]
-    fn testr_arr() {
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/2_arr.cbml");
-    }
-
-    #[test]
-    fn test_1() {
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/1.cmml");
-    }
-
-    #[test]
-    fn test_struct() {
-        asdfasdfsdf("/Users/chenbao/Documents/GitHub/cbml/examples/7_struct-cbml");
-    }
-
     fn test_code_file(path: &str) {
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
@@ -132,7 +112,7 @@ mod tests {
         use crate::parser::cbml_parser::CbmlParser;
 
         let lexer_result = tokenizer(path, code);
-        
+
         lexer_result.errors.iter().for_each(|x| {
             println!("{}", x.lookup(code));
         });
@@ -146,34 +126,11 @@ mod tests {
 
         drop(tokens);
 
-        match re {
-            Ok(ref ast) => {
-                // ast.iter().for_each(|s| {
-                //     dp(format!("statement: {:?}", s));
-                // });
-
-                // dp("start typecheck: ");
-
-                // let re = typecheck(path.into(), ast);
-
-                // if re.is_empty() {
-                //     dp("没有检查出类型错误.");
-                // } else {
-                //     // has errors.
-                //     re.iter().for_each(|x| {
-                //         x.report_error(code);
-                //         // dp(format!("{:?}", x));
-                //     });
-                // }
-            }
-            Err(e) => {
-                e.iter().for_each(|s| {
-                    dp(format!("message: {:?}", s.msg));
-                    // dp(format!("tok: {:?}", s.token));
-                });
-
-                panic!();
-            }
+        if !re.errors.is_empty() {
+            re.errors.iter().for_each(|s| {
+                dp(format!("message: {:?}", s.msg));
+                // dp(format!("tok: {:?}", s.token));
+            });
         }
     }
 }

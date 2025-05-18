@@ -1,20 +1,12 @@
-use super::{
-    typedef_file::TypedefFile,
-    types::{FieldAsign, FieldDef, ScopeID, TypeInfo},
-};
-use crate::{
-    cbml_value::value::{CbmlType, CbmlTypeKind, ToCbmlValue},
-    formater::ToCbmlCode,
-    lexer::{
-        token::{Position, Span},
-        tokenizer,
-    },
-    parser::{
-        CbmlParser,
-        ast::stmt::{Literal, LiteralKind, Stmt},
-        parser_error::ParserError,
-    },
-};
+use super::typedef_file::TypedefFile;
+use super::types::*;
+use crate::cbml_value::value::*;
+use crate::formater::ToCbmlCode;
+use crate::lexer::token::*;
+use crate::lexer::tokenizer;
+use crate::parser::CbmlParser;
+use crate::parser::ast::stmt::*;
+use crate::parser::parser_error::ParserError;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
@@ -35,82 +27,6 @@ pub struct CodeFile {
 }
 
 impl CodeFile {
-    pub fn new(file_path: String) -> Self {
-        let mut f = Self {
-            file_path: file_path.clone(),
-            fields: Vec::new(),
-            use_url: None,
-            typedef_file: None,
-            errors: Vec::new(),
-            last_line_span: Span::empty(),
-            field_id: 0,
-            _current_scope: Vec::new(),
-        };
-
-        if (&file_path).ends_with(".def.cbml") {
-            let e = ParserError {
-                file_path,
-                msg: format!("以 .def.cbml 的是类型定义文件."),
-                code_location: Span::empty(),
-                note: None,
-                help: None,
-            };
-
-            f.errors.push(e);
-        } else {
-            f.parse_file(&file_path);
-        };
-
-        f.error_check();
-
-        return f;
-    }
-
-    pub fn new_from(file_path: String, code: &str) -> Self {
-        let mut f = Self {
-            file_path: file_path.clone(),
-            fields: Vec::new(),
-            use_url: None,
-            typedef_file: None,
-            errors: Vec::new(),
-            last_line_span: Span::empty(),
-            field_id: 0,
-            _current_scope: Vec::new(),
-        };
-
-        if (&file_path).ends_with(".def.cbml") {
-            let e = ParserError {
-                file_path,
-                msg: format!("以 .def.cbml 的是类型定义文件."),
-                code_location: Span::empty(),
-                note: None,
-                help: None,
-            };
-
-            f.errors.push(e);
-        } else {
-            f.parse_code(code);
-        };
-
-        f.error_check();
-
-        return f;
-    }
-
-    pub fn get_all_errors(&self) -> Vec<ParserError> {
-        let mut re: Vec<ParserError> = vec![];
-
-        re.extend_from_slice(&self.errors);
-
-        // let Some(def) = &self.typedef_file else {
-        //     return re;
-        // };
-
-        // re.extend_from_slice(&def.errors);
-
-        return re;
-    }
-
     fn parse_file(&mut self, path: &str) {
         // use crate::parser::cbml_parser::CbmlParser;
         use std::fs::read_to_string;
@@ -141,7 +57,7 @@ impl CodeFile {
         }
 
         let lexer_result = tokenizer(&self.file_path, &code);
-        let tokens =  lexer_result.tokens;
+        let tokens = lexer_result.tokens;
         // let tokens = match lexer_result {
         //     Ok(t) => t,
         //     Err(e) => {
@@ -155,14 +71,19 @@ impl CodeFile {
         let mut parser = CbmlParser::new(self.file_path.clone(), &tokens);
         let parser_result = parser.parse();
 
-        match parser_result {
-            Ok(ast) => {
-                self.parse_ast(ast);
-            }
-            Err(mut errs) => {
-                self.errors.append(&mut errs);
-            }
-        };
+        if !parser_result.errors.is_empty() {
+            self.errors.extend_from_slice(&parser_result.errors);
+        }
+
+        self.parse_ast(parser_result.ast);
+        // match parser_result {
+        //     Ok(ast) => {
+        //         self.parse_ast(ast);
+        //     }
+        //     Err(mut errs) => {
+        //         self.errors.append(&mut errs);
+        //     }
+        // };
     }
 
     fn parse_ast(&mut self, ast: Vec<Stmt>) {
@@ -202,19 +123,40 @@ impl CodeFile {
         };
 
         self.use_url = Some(use_stmt.get_use_url());
+
+        // 检测这个文件是否能打开.
+        {
+            let asdf = std::fs::File::open(use_stmt.get_use_url());
+            match asdf {
+                Ok(f) => _ = f.try_clone(),
+                Err(e) => {
+                    let e = ParserError {
+                        error_code: None,
+                        file_path: use_stmt.get_use_url(),
+                        msg: format!("{}", e),
+                        span: Span::empty(),
+                        note: None,
+                        help: None,
+                    };
+                    self.errors.push(e);
+                }
+            }
+        }
+
         let def_file = TypedefFile::new(use_stmt.get_use_url());
 
         // 错误检查.
         {
             if !def_file.errors.is_empty() {
                 let e = ParserError {
+                    error_code: None,
                     file_path: self.file_path.clone(),
                     msg: format!(
                         "引用的 类型定义文件 中有 {} 个错误: \n{}",
                         def_file.errors.len(),
                         &use_stmt.url
                     ),
-                    code_location: use_stmt.keyword_span.clone(),
+                    span: use_stmt.keyword_span.clone(),
                     note: None,
                     help: None,
                 };
@@ -277,9 +219,10 @@ impl CodeFile {
         struct_field_def_stmt: &crate::parser::ast::stmt::StructFieldDefStmt,
     ) {
         let e = ParserError {
+            error_code: None,
             file_path: self.file_path.clone(),
             msg: format!("字段定义在这里是不允许的."),
-            code_location: Span {
+            span: Span {
                 start: struct_field_def_stmt.field_name_span.start.clone(),
                 end: struct_field_def_stmt.end_span().end,
             },
@@ -293,9 +236,10 @@ impl CodeFile {
 
     fn parse_struct_def(&mut self, struct_def: &crate::parser::ast::stmt::StructDef) {
         let e = ParserError {
+            error_code: None,
             file_path: self.file_path.clone(),
             msg: format!("字段定义在这里是不允许的."),
-            code_location: Span {
+            span: Span {
                 start: struct_def.name_span.start.clone(),
                 end: struct_def.end_span().end,
             },
@@ -308,9 +252,10 @@ impl CodeFile {
 
     fn parse_enum_def(&mut self, enum_def: &crate::parser::ast::stmt::EnumDef) {
         let e = ParserError {
+            error_code: None,
             file_path: self.file_path.clone(),
             msg: format!("类型定义在这里是不允许的."),
-            code_location: enum_def.name_span.clone(),
+            span: enum_def.name_span.clone(),
             note: Some(format!("")),
 
             help: Some(format!("将字段定义移动道 typedef 文件中.")),
@@ -321,9 +266,10 @@ impl CodeFile {
 
     fn parse_type_def(&mut self, type_def_stmt: &crate::parser::ast::stmt::TypeDefStmt) {
         let e = ParserError {
+            error_code: None,
             file_path: self.file_path.clone(),
             msg: format!("类型定义在这里是不允许的."),
-            code_location: type_def_stmt.get_span(),
+            span: type_def_stmt.get_span(),
             note: Some(format!("")),
 
             help: Some(format!("将字段定义移动道 typedef 文件中.")),
@@ -364,9 +310,10 @@ impl CodeFile {
         {
             if !self.fields.is_empty() {
                 let e = ParserError {
+                    error_code: None,
                     file_path: self.file_path.clone(),
                     msg: format!("`use` 只能在文件的最开头."),
-                    code_location: use_stmt.keyword_span.clone(),
+                    span: use_stmt.keyword_span.clone(),
                     note: None,
                     help: Some(format!("尝试将 `use` 移动到第一行")),
                 };
@@ -394,6 +341,8 @@ impl CodeFile {
             if !def_file.errors.is_empty() {
                 return;
             }
+        } else {
+            return;
         };
 
         self.check_duplicated_file_field_name();
@@ -416,6 +365,7 @@ impl CodeFile {
         }
     }
 
+    // #[allow(dead_code)]
     fn type_check_for_array(
         &mut self,
         inner_type: Box<CbmlType>,
@@ -428,7 +378,7 @@ impl CodeFile {
                 literals.iter().all(|x| self.is_same_type(&inner_type, x));
 
                 for x in literals {
-                    self.is_same_type(&inner_type, x);
+                    if !self.is_same_type(&inner_type, x) {};
                 }
 
                 Ok(())
@@ -438,7 +388,12 @@ impl CodeFile {
                 let e = ParserError::err_mismatched_types(
                     self.file_path.clone(),
                     span,
-                    &inner_type.to_cbml_code(0),
+                    &CbmlType {
+                        kind: CbmlTypeKind::Array {
+                            inner_type: inner_type,
+                        },
+                    }
+                    .to_cbml_code(0),
                     &found.to_cbml_code(0),
                 );
                 Err(e)
@@ -475,6 +430,9 @@ impl CodeFile {
                 //
                 match kind {
                     LiteralKind::Array(literals) => {
+                        if literals.is_empty() {
+                            return true;
+                        }
                         return literals.iter().all(|x| self.is_same_type(&inner_type, x));
                     }
                     LiteralKind::Default => true,
@@ -601,7 +559,7 @@ impl CodeFile {
 
             let e = ParserError::err_mismatched_types(
                 self.file_path.clone(),
-                field.span.clone(),
+                field.value.span.clone(),
                 &type_info.ty.to_cbml_code(0),
                 &field.value.kind.to_cbml_code(0),
             );
@@ -640,26 +598,18 @@ impl CodeFile {
     fn check_unasigned_field(&mut self) {
         let file_path = self.file_path.clone();
 
-        let sadf = self.get_unasigned_field();
-        if sadf.is_empty() {
+        let span = self.last_line_span.clone();
+        let unasigned_field = self.get_unasigned_fields();
+        if unasigned_field.is_empty() {
             return;
         }
 
-        let safd = sadf.iter().fold(String::new(), |mut x, y| {
-            x.push_str(&format!(" \"{}\" ", &y.name));
-            x
-        });
-        let e = ParserError {
-            file_path: file_path,
-            msg: format!("还有 {} 个字段未赋值: {}", sadf.len(), safd),
-            code_location: self.last_line_span.clone(),
-            note: None,
-            help: None,
-        };
+        let e = ParserError::err_has_fields_unasigned(file_path, unasigned_field, span);
         self.errors.push(e);
     }
 
     /// 检查那些 赋值了却并未定义的字段.
+    #[allow(dead_code)]
     fn check_extra_field_asign(&mut self) {
         let Some(def_file) = &self.typedef_file else {
             return;
@@ -668,7 +618,7 @@ impl CodeFile {
         for x in &self.fields {
             let sadf = def_file.get_field_def_by_name(x.name.clone(), x.scope.clone());
             match sadf {
-                Some(f) => {
+                Some(_f) => {
                     continue;
                 }
                 None => {
@@ -684,10 +634,89 @@ impl CodeFile {
         }
     }
     // 缺失字段检查, 检查 struct 中定义了却没有赋值的字段.
+    #[allow(dead_code)]
     fn check_struct_field(&mut self) {}
 }
 
 impl CodeFile {
+    pub fn new(file_path: String) -> Self {
+        let mut f = Self {
+            file_path: file_path.clone(),
+            fields: Vec::new(),
+            use_url: None,
+            typedef_file: None,
+            errors: Vec::new(),
+            last_line_span: Span::empty(),
+            field_id: 0,
+            _current_scope: Vec::new(),
+        };
+
+        if (&file_path).ends_with(".def.cbml") {
+            let e = ParserError {
+                error_code: None,
+                file_path,
+                msg: format!("以 .def.cbml 的是类型定义文件."),
+                span: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            f.errors.push(e);
+        } else {
+            f.parse_file(&file_path);
+        };
+
+        f.error_check();
+
+        return f;
+    }
+
+    pub fn new_from(file_path: String, code: &str) -> Self {
+        let mut f = Self {
+            file_path: file_path.clone(),
+            fields: Vec::new(),
+            use_url: None,
+            typedef_file: None,
+            errors: Vec::new(),
+            last_line_span: Span::empty(),
+            field_id: 0,
+            _current_scope: Vec::new(),
+        };
+
+        if (&file_path).ends_with(".def.cbml") {
+            let e = ParserError {
+                error_code: None,
+                file_path,
+                msg: format!("以 .def.cbml 的是类型定义文件."),
+                span: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            f.errors.push(e);
+        } else {
+            f.parse_code(code);
+        };
+
+        f.error_check();
+
+        return f;
+    }
+
+    pub fn get_all_errors(&self) -> Vec<ParserError> {
+        let mut re: Vec<ParserError> = vec![];
+
+        re.extend_from_slice(&self.errors);
+
+        // let Some(def) = &self.typedef_file else {
+        //     return re;
+        // };
+
+        // re.extend_from_slice(&def.errors);
+
+        return re;
+    }
+
     /// 获取字段的定义.
     pub fn get_field_def(&self, field_name: &String, scope: ScopeID) -> Option<&FieldDef> {
         let Some(def_file) = &self.typedef_file else {
@@ -700,19 +729,16 @@ impl CodeFile {
     }
 
     /// 获取字段定义的类型.
-    /// todo: 如何知道这个 field 是 top level field 还是某个结构体的字段?
     pub fn get_field_defined_type(&self, field: &FieldAsign) -> Option<&TypeInfo> {
         let Some(field_def) = self.get_field_def(&field.name, field.scope.clone()) else {
             return None;
         };
 
         return Some(&field_def.type_);
-
-        // return def_file.types.get(&field_def.type_sign);
     }
 
     /// 获取定义了却并未赋值的 top level field.
-    pub fn get_unasigned_field(&mut self) -> Vec<&FieldDef> {
+    pub fn get_unasigned_fields(&self) -> Vec<&FieldDef> {
         let Some(def_file) = &self.typedef_file else {
             return Vec::new();
         };
@@ -732,5 +758,25 @@ impl CodeFile {
         }
 
         return unasigned_fields;
+    }
+
+    /// goto_difinition 的时候会用到.
+    pub fn get_field_def_by_location(&self, line: u32, colunm: u32) -> Vec<&FieldDef> {
+        let mut matchd_field_asign: Vec<&FieldAsign> = Vec::new();
+
+        for x in &self.fields {
+            if x.span.is_contain(line, colunm) {
+                matchd_field_asign.push(x);
+            }
+        }
+
+        let mut re: Vec<&FieldDef> = Vec::new();
+        for x in matchd_field_asign {
+            if let Some(def) = self.get_field_def(&x.name, x.scope.clone()) {
+                re.push(def);
+            };
+        }
+
+        return re;
     }
 }

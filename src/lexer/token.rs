@@ -31,8 +31,9 @@ impl std::cmp::PartialEq for Token {
 }
 // impl std::cmp::Eq for Token {}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind {
+    /// 里面存储的是未转义的原始内容.
     String(String), // staring literal
     Number(f64),    // number literal 十进制 二进制 十六进制 写法.
     LineComment(String),

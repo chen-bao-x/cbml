@@ -1,4 +1,6 @@
-use crate::{cbml_value::value::CbmlType, lexer::token::Span, parser::ast::stmt::Literal};
+use crate::cbml_value::value::CbmlType;
+use crate::lexer::token::Span;
+use crate::parser::ast::stmt::Literal;
 
 #[derive(Debug, Clone)]
 pub struct FieldAsign {
@@ -13,13 +15,11 @@ pub struct FieldAsign {
 pub struct FieldDef {
     pub name: String,
 
-    // deprered
-    pub type_sign: String,
-
     pub type_: TypeInfo,
     pub default_value: Option<Literal>,
     pub span: Span,
     pub scope: ScopeID,
+    pub doc: Option<String>,
 }
 
 #[derive(Debug, Clone)]

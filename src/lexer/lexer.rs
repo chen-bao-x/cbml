@@ -2,8 +2,6 @@ use crate::parser::parser_error::ParserError;
 
 use super::token::{Position, Span, Token, TokenID};
 
-use std::num::ParseFloatError;
-
 #[derive(Debug, Clone, Copy)]
 enum State {
     Initial,
@@ -287,9 +285,10 @@ impl Lexer {
                             let tok = Token::new(tk::Invalid(x), loc, self.gen_token_id());
 
                             errors.push(ParserError {
+                                error_code: None,
                                 file_path: self.file_path.clone(),
                                 msg: format!("未识别的字符 {}", x),
-                                code_location: tok.span,
+                                span: tok.span,
                                 note: None,
                                 help: None,
                             });
@@ -344,9 +343,10 @@ impl Lexer {
                                 Ok(f) => f,
                                 Err(e) => {
                                     errors.push(ParserError {
+                                        error_code: None,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
-                                        code_location: self.get_pos(),
+                                        span: self.get_pos(),
                                         note: None,
                                         help: None,
                                     });
@@ -412,9 +412,10 @@ impl Lexer {
                                 Ok(f) => f,
                                 Err(e) => {
                                     errors.push(ParserError {
+                                        error_code: None,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
-                                        code_location: self.get_pos(),
+                                        span: self.get_pos(),
                                         note: None,
                                         help: None,
                                     });
@@ -464,9 +465,10 @@ impl Lexer {
                                     //     help: None,
                                     // });
                                     errors.push(ParserError {
+                                        error_code: None,
                                         file_path: self.file_path.clone(),
                                         msg: format!("无效的数字格式 {:?}", self.current),
-                                        code_location: self.get_pos(),
+                                        span: self.get_pos(),
                                         note: Some("number 中最多有一个小数点.".into()),
                                         help: None,
                                     });
@@ -487,32 +489,20 @@ impl Lexer {
                         }
                         _ => {
                             // 处理数字结束
-                            // let num: f64 =
-                            //     self.current
-                            //         .parse()
-                            //         .map_err(|e: ParseFloatError| ParserError {
-                            //             file_path: self.file_path.clone(),
-                            //             msg: e.to_string(),
-                            //             code_location: self.get_pos(),
-                            //             note: None,
-                            //             help: None,
-                            //         })?;
                             let num: f64 = match self.current.parse() {
                                 Ok(f) => f,
                                 Err(e) => {
                                     errors.push(ParserError {
+                                        error_code: None,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
-                                        code_location: self.get_pos(),
+                                        span: self.get_pos(),
                                         note: None,
                                         help: None,
                                     });
                                     continue;
                                 }
                             };
-
-                            // let tok = Token::new(tk::Number(num), self.line, self.column);
-                            // tokens.push(tok);
 
                             self.mark_end_pos();
                             let loc = self.get_pos();
@@ -548,10 +538,14 @@ impl Lexer {
                             self.current.clear();
                         }
                         '\\' => {
-                            // self.advance();
                             // 处理转义字符
                             self.push_and_advance(ch);
-                            self.push_and_advance(ch);
+                            let sadf = self.advance();
+
+                            if let Some(c) = sadf {
+                                self.current.push(c);
+                            }
+                            // self.push_and_advance(ch);
 
                             // 字符的转义交由后续来处理, 这里仅仅将 源代码 中的字符串字面量完整记录下来.
 
@@ -785,9 +779,10 @@ impl Lexer {
                                 }
                             } else {
                                 errors.push(ParserError {
+                                    error_code: None,
                                     file_path: self.file_path.clone(),
                                     msg: format!("语法错误: 需要一个 /"),
-                                    code_location: self.get_pos(),
+                                    span: self.get_pos(),
                                     note: None,
                                     help: None,
                                 });
@@ -836,9 +831,10 @@ impl Lexer {
                             Ok(f) => f,
                             Err(e) => {
                                 errors.push(ParserError {
+                                    error_code: None,
                                     file_path: self.file_path.clone(),
                                     msg: e.to_string(),
-                                    code_location: self.get_pos(),
+                                    span: self.get_pos(),
                                     note: None,
                                     help: None,
                                 });
@@ -878,11 +874,12 @@ impl Lexer {
                                 Ok(f) => f,
                                 Err(e) => {
                                     errors.push(ParserError {
+                                        error_code: None,
                                         note: None,
                                         help: None,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
-                                        code_location: self.get_pos(),
+                                        span: self.get_pos(),
                                     });
 
                                     let re = LexerResult { tokens, errors };
@@ -933,11 +930,12 @@ impl Lexer {
                             Ok(f) => f,
                             Err(e) => {
                                 errors.push(ParserError {
+                                    error_code: None,
                                     note: None,
                                     help: None,
                                     file_path: self.file_path.clone(),
                                     msg: e.to_string(),
-                                    code_location: self.get_pos(),
+                                    span: self.get_pos(),
                                 });
                                 let re = LexerResult { tokens, errors };
                                 return re;
@@ -1080,7 +1078,7 @@ impl Lexer {
 #[cfg(test)]
 mod test {
 
-    use crate::dp;
+    use crate::{dp, lexer::token::TokenKind};
 
     use super::*;
 
@@ -1093,11 +1091,107 @@ mod test {
     fn sadfdasf(code: &str) {
         let a = Lexer::new("file_path", code).tokenize();
 
-        for token in a.tokens {
-            dp(format!("{:?}", token.kind));
-        }
+        // for token in a.tokens {
+        //     dp(format!("{:?}", token.kind));
+        // }
 
         dp(format!("Error: {:?}", a.errors));
+
+        let tokens: Vec<TokenKind> = a.tokens.iter().map(|x| x.kind.clone()).collect();
+
+        let sdf: Vec<TokenKind> = vec![
+            TokenKind::NewLine,
+            TokenKind::Use,
+            TokenKind::String("\"./1.typedef.cbml\"".to_string()),
+            TokenKind::NewLine,
+            TokenKind::LineComment("// line comment \n".to_string()),
+            TokenKind::DocComment("/// doc comment \n".to_string()),
+            TokenKind::BlockComment("/* \nmuilty line comment \n*/".to_string()),
+            TokenKind::NewLine,
+            TokenKind::Identifier("package".to_string()),
+            TokenKind::Asign,
+            TokenKind::LBrace,
+            TokenKind::NewLine,
+            TokenKind::Identifier("name".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"new\"".to_string()),
+            TokenKind::NewLine,
+            TokenKind::Identifier("version".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"0.1.0\"".to_string()),
+            TokenKind::NewLine,
+            TokenKind::Identifier("edition".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"2021\"".to_string()),
+            TokenKind::NewLine,
+            TokenKind::RBrace,
+            TokenKind::NewLine,
+            TokenKind::NewLine,
+            TokenKind::Identifier("dependencies".to_string()),
+            TokenKind::Asign,
+            TokenKind::LBracket,
+            TokenKind::NewLine,
+            TokenKind::LBrace,
+            TokenKind::Identifier("name".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"chenbao_cmd\"".to_string()),
+            TokenKind::Comma,
+            TokenKind::Identifier("git".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"ssh://git@github.com/chen-bao-x/chenbao_cmd.git\"".to_string()),
+            TokenKind::Comma,
+            TokenKind::Identifier("branch".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"master\"".to_string()),
+            TokenKind::RBrace,
+            TokenKind::Comma,
+            TokenKind::NewLine,
+            TokenKind::LBrace,
+            TokenKind::Identifier("name".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"colored\"".to_string()),
+            TokenKind::Comma,
+            TokenKind::Identifier("varsion".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"3.0.0\"".to_string()),
+            TokenKind::Comma,
+            TokenKind::RBrace,
+            TokenKind::NewLine,
+            TokenKind::RBracket,
+            TokenKind::NewLine,
+            TokenKind::NewLine,
+            TokenKind::Number(2863311530.0),
+            TokenKind::NewLine,
+            TokenKind::Number(4112.0),
+            TokenKind::NewLine,
+            TokenKind::Number(16755231.0),
+            TokenKind::NewLine,
+            TokenKind::Number(170.0),
+            TokenKind::NewLine,
+            TokenKind::Number(170.0),
+            TokenKind::NewLine,
+            TokenKind::NewLine,
+            TokenKind::NewLine,
+            TokenKind::Identifier("str".to_string()),
+            TokenKind::Colon,
+            TokenKind::StringTy,
+            TokenKind::NewLine,
+            TokenKind::Identifier("str".to_string()),
+            TokenKind::Asign,
+            TokenKind::String("\"string\"".to_string()),
+            TokenKind::NewLine,
+            TokenKind::Identifier("num".to_string()),
+            TokenKind::Colon,
+            TokenKind::NumberTy,
+            TokenKind::NewLine,
+            TokenKind::Identifier("num".to_string()),
+            TokenKind::Asign,
+            TokenKind::Number(-1324.0),
+            TokenKind::NewLine,
+            TokenKind::NewLine,
+        ];
+
+        assert_eq!(tokens, sdf);
     }
 
     const EXMAPLE_1: &str = r###"

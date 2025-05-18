@@ -1,7 +1,8 @@
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
 // asdfdasf = 88
- 
+
 package = {
+    asdf = "sadfsdf"
     edition = " 15245"
     version = "0.1.0"
     name = "new"
@@ -24,11 +25,9 @@ enum_2 = ssh({
     git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
     branch = "master"
 })
-// // // // // // // // // // // // // // // //   name = default 
-
 // // asdfsadf 
 
-/* /* /* /* /*  sadff */
+/*    sadff */
 name = default
 age = none
 opt = 23
@@ -75,3 +74,6 @@ enum_1 = ssh({
     git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
     branch = "master"
 })
+aaa = 99
+opt_arr_number = [1, 2, 3]
+

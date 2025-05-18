@@ -1,31 +1,66 @@
 // adfsdaf
 
+/// # aaa 的文档  
+/// ```cbml
+/// 
+/// 
+/// 
+/// 
+/// 
+/// let a = "32452345";
+/// asdfds: string
+/// name = default
+/// name: ?string
+/// 
+/// 
+/// dsafdsaf: any
+/// dsafdsafds: ??any
+/// asdf = true
+/// 
+/// 可以自动在行首添加 "/// " 了, 开心😄
+/// 
+/// ```
 aaa: number
-package: { 
-    
-        asdf: string
+package: {
+    asdf: string
     name: string default "hello"
     version: string
     edition: string
 }
 asdfadsf: 1 | 2 | 3 
 opt_string: ?string
+
 opt_number: ?number
+
 opt_boolean: ?bool
-opt_arr_string: ?[string]
-opt_arr_number: ?[number]
-opt_arr_boolean: ?[bool]
+
+opt_arr_string: ?[string
+]
+
+opt_arr_number: ?[number ]
+
+opt_arr_boolean: ?[bool
+]
+
 opt_struct: ?{
     name: string
 }
+
 opt_struct_2: ?{
     name: string
     age: number
 }
+
 opt_union: ?1 | 2 | 3 
+
 opt_any: ?any
+
 opt_opt_number: ??number
-arr_arr_number: [[number]]
+
+
+arr_arr_number: [[number
+]
+]
 number_default: number default 99
 tree: {
     name: string
@@ -56,8 +91,6 @@ tree: {
     }
 }
 opt: 1 | 2 | 23 
-/// asfsadfsdf
-
 // 做类型检查时, 需要先确定 val 的类型, 里面的字段类型才能被确定.
 
 val: {
@@ -66,36 +99,52 @@ val: {
         age: number
     }
 }
-
-dependencies: [
-    enum {
-        ssh({
-            name: string
-            git: string
-            branch: string
-        })
-        version( {
-            name: string
-            varsion: string
-        })
+dependencies: [enum {ssh( {
+        name: string
+        git: string
+        branch: string
     }
- ]
-enum_1 : enum {
-    ssh({
-        name :string
-        git :string
-        branch :string
-    })
+ )
+ version( {
+        name: string
+        varsion: string
+    }
+ )
+ }
+]
+enum_1: enum {ssh( {
+    name: string
+    git: string
+    branch: string
 }
-
- 
-enum_2 : enum {
-    ssh({
-        name :string
-        git :string
-        branch :string
-    })
+ )
+ }
+enum_2: enum {ssh( {
+    name: string
+    git: string
+    branch: string
 }
+ )
+ }
+name: string default "hello"
+age: ?number
+
+haha: {
+    name: string
 
 
-name : string default "hello"
+
+
+    age: number
+}
+sadfdsaf: string
+sadfdsf: number
+sadfdsafdsafds: string
+asdf: string
+asdfsadfdsa: string
+asdfdsaf: string
+adsfadsfasdfsadf: string
+sadf_34252435: 2345 
+sdafdsaf: string
+sadfsdf: string
+fdasdf: string
