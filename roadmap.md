@@ -13,3 +13,18 @@
 [ ] 序列化为 golang 的数据类型.
 [ ] 序列化为 zig 的数据类型.
 [ ] 序列化为 python 的数据类型.
+
+
+[ ] serde suport
+    [ ] serialize
+    [ ] deserialize
+    [ ] serializer
+    [ ] deserializer
+    [ ] .def.cbml generate
+
+rust_type -> serde -> .def.cbml 
+.def.cbml -> serde -> rust_type
+
+rust_data -> serde -> cbml 
+cbml -> serde -> rust_data
+

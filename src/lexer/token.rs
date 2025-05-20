@@ -63,7 +63,7 @@ pub enum TokenKind {
     Any,     // any
     Struct,  // struct
     Union,   // union
-    Todo,    // todo
+    // Todo,    // todo
     Use,     // use
     Default, // default
     Enum,    // enum
@@ -88,11 +88,9 @@ impl TokenKind {
                 "any" => TokenKind::Any,
                 "struct" => TokenKind::Struct,
                 "union" => TokenKind::Union,
-                "todo" => TokenKind::Todo,
                 "use" => TokenKind::Use,
                 "default" => TokenKind::Default,
                 "enum" => TokenKind::Enum,
-
                 "string" => TokenKind::StringTy,
                 "number" => TokenKind::NumberTy,
                 "bool" => TokenKind::BooleanTy,
@@ -128,7 +126,7 @@ impl TokenKind {
             (TokenKind::Any, TokenKind::Any) => true,
             (TokenKind::Struct, TokenKind::Struct) => true,
             (TokenKind::Union, TokenKind::Union) => true,
-            (TokenKind::Todo, TokenKind::Todo) => true,
+            // (TokenKind::Todo, TokenKind::Todo) => true,
             (TokenKind::Use, TokenKind::Use) => true,
             (TokenKind::Default, TokenKind::Default) => true,
             (TokenKind::StringTy, TokenKind::StringTy) => true,
@@ -173,7 +171,7 @@ impl TokenKind {
             // TokenKind::Any => "",
             TokenKind::Struct => "struct",
             TokenKind::Union => "union",
-            TokenKind::Todo => "todo",
+            // TokenKind::Todo => "todo",
             TokenKind::Use => "use",
             TokenKind::Default => "default",
             TokenKind::StringTy => "string",

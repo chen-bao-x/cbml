@@ -1,7 +1,8 @@
 use super::types::*;
-use crate::cbml_value::value::*;
+use crate::cbml_data::cbml_type::{CbmlType, CbmlTypeKind};
+use crate::cbml_data::cbml_value::*;
 use crate::lexer::token::Span;
-use crate::lexer::tokenizer;
+use crate::lexer::tokenize;
 use crate::parser::CbmlParser;
 use crate::parser::ast::stmt::*;
 use crate::parser::parser_error::ParserError;
@@ -43,7 +44,7 @@ impl TypedefFile {
                 span: Span::empty(),
                 note: None,
                 help: None,
-                error_code: None,
+                error_code: 0000,
             };
 
             f.errors.push(e);
@@ -68,7 +69,7 @@ impl TypedefFile {
             f.parse_code(code);
         } else {
             let e = ParserError {
-                error_code: None,
+                error_code: 0000,
                 file_path,
                 msg: format!("类型定义文件的文件名需要以 .def.cbml 结尾."),
                 span: Span::empty(),
@@ -87,6 +88,36 @@ impl TypedefFile {
         self.fields_map.get(&key)
     }
 
+    /// goto_difinition 的时候会用到.
+    pub fn get_field_def_by_location(&self, line: u32, colunm: u32) -> Vec<&FieldDef> {
+        let mut matchd_field_asign: Vec<&FieldDef> = Vec::new();
+
+        for (_, x) in &self.fields_map {
+            if x.span.is_contain(line, colunm) {
+                matchd_field_asign.push(x);
+            }
+        }
+
+        // let mut re: Vec<&FieldDef> = Vec::new();
+        // for x in matchd_field_asign {
+        //     if let Some(def) = self.get_field_def(&x.name, x.scope.clone()) {
+        //         re.push(def);
+        //     };
+        // }
+
+        return matchd_field_asign;
+    }
+
+    pub fn get_all_top_fields(&self) -> Vec<&FieldDef> {
+        let top_scope = ScopeID::new(String::new());
+        self.fields_map
+            .iter()
+            .filter(|x| x.1.scope == top_scope)
+            .map(|x| x.1)
+            .collect()
+    }
+}
+impl TypedefFile {
     fn parse_file(&mut self, path: &str) {
         use std::fs::read_to_string;
 
@@ -96,7 +127,7 @@ impl TypedefFile {
             }
             Err(e) => {
                 let e = ParserError {
-                    error_code: None,
+                    error_code: 0000,
                     file_path: path.to_string(),
                     msg: format!("{:?}", e),
                     span: Span::empty(),
@@ -111,7 +142,7 @@ impl TypedefFile {
     fn parse_code(&mut self, code: &str) {
         let path = &self.file_path;
 
-        let lexer_result = tokenizer(path, &code);
+        let lexer_result = tokenize(path, &code);
 
         self.errors.extend(lexer_result.errors);
         let tokens = lexer_result.tokens;
@@ -200,7 +231,7 @@ impl TypedefFile {
 
     fn parse_use(&mut self, use_stmt: UseStmt) {
         let e = ParserError {
-            error_code: None,
+            error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("不能类型定义文件中使用 use 语句."),
             span: use_stmt.keyword_span,
@@ -212,7 +243,7 @@ impl TypedefFile {
 
     fn parse_asignment(&mut self, a: AsignmentStmt) {
         let e = ParserError {
-            error_code: None,
+            error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("不能在类型定义文件中给用字段赋值."),
             span: a.field_name_span,
@@ -405,7 +436,7 @@ impl TypedefFile {
             crate::parser::ast::stmt::TypeSignStmtKind::Custom(_custom_type_namee) => {
                 //
                 let e = ParserError {
-                    error_code: None,
+                    error_code: 0000,
                     file_path: self.file_path.clone(),
                     msg: format!("unkonw type: {}", _custom_type_namee),
                     span,
@@ -519,14 +550,5 @@ impl TypedefFile {
             TypeDefStmt::EnumDef(enum_def) => self.parse_enum_def(enum_def),
             TypeDefStmt::UnionDef(union_def) => self.parse_union_def(union_def),
         }
-    }
-
-    pub fn get_all_top_fields(&self) -> Vec<&FieldDef> {
-        let top_scope = ScopeID::new(String::new());
-        self.fields_map
-            .iter()
-            .filter(|x| x.1.scope == top_scope)
-            .map(|x| x.1)
-            .collect()
     }
 }

@@ -1,6 +1,4 @@
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
-// asdfdasf = 88
-
 package = {
     asdf = "sadfsdf"
     edition = " 15245"
@@ -24,11 +22,15 @@ enum_2 = ssh({
     name = "chenbao_cmd"
     git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
     branch = "master"
+    adsfasdf = ssh({
+        name = "chenbao_cmd"
+        git = "ssh://git@github.com/chen-bao-x/chenbao_cmd.git"
+        branch = "master"
+    })
 })
 // // asdfsadf 
 
 /*    sadff */
-name = default
 age = none
 opt = 23
 haha = {
@@ -76,4 +78,29 @@ enum_1 = ssh({
 })
 aaa = 99
 opt_arr_number = [1, 2, 3]
+opt_union = 1
+asdfadsf = 1
+opt_arr_boolean = []
+adsfadsfasdfsadf = "${1:string}"
+sadfdsaf = ""
+sdafdsaf = ""
+asdfdsaf = ""
+opt_number = 1
+sadfdsf = 1
+opt_opt_number = -0x231
+opt_any = none
+opt_boolean = none
+opt_arr_string = none
+arr_arr_number = [[1, 2, 3, 4, 5, 6], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1]]
+number_default = 1
+opt_struct = none
+opt_string = "none"
+asdfsadfdsa = ""
+fdasdf = ""
+sadfsdf = ""
+sadfdsafdsafds = ""
+opt_struct_2 = none
+adsf = true
+adfsadfasdf = "100"
 
+sadf_34252435 = 2345

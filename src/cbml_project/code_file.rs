@@ -1,12 +1,18 @@
 use super::typedef_file::TypedefFile;
 use super::types::*;
-use crate::cbml_value::value::*;
+
+use crate::cbml_data::cbml_type::CbmlType;
+
+use crate::cbml_data::cbml_type::CbmlTypeKind;
+use crate::cbml_data::cbml_value::CbmlValue;
+use crate::cbml_data::cbml_value::ToCbmlValue;
 use crate::formater::ToCbmlCode;
 use crate::lexer::token::*;
-use crate::lexer::tokenizer;
+use crate::lexer::tokenize;
 use crate::parser::CbmlParser;
 use crate::parser::ast::stmt::*;
 use crate::parser::parser_error::ParserError;
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
@@ -56,7 +62,7 @@ impl CodeFile {
             };
         }
 
-        let lexer_result = tokenizer(&self.file_path, &code);
+        let lexer_result = tokenize(&self.file_path, &code);
         let tokens = lexer_result.tokens;
         // let tokens = match lexer_result {
         //     Ok(t) => t,
@@ -131,7 +137,7 @@ impl CodeFile {
                 Ok(f) => _ = f.try_clone(),
                 Err(e) => {
                     let e = ParserError {
-                        error_code: None,
+                        error_code: 0000,
                         file_path: use_stmt.get_use_url(),
                         msg: format!("{}", e),
                         span: Span::empty(),
@@ -148,18 +154,11 @@ impl CodeFile {
         // 错误检查.
         {
             if !def_file.errors.is_empty() {
-                let e = ParserError {
-                    error_code: None,
-                    file_path: self.file_path.clone(),
-                    msg: format!(
-                        "引用的 类型定义文件 中有 {} 个错误: \n{}",
-                        def_file.errors.len(),
-                        &use_stmt.url
-                    ),
-                    span: use_stmt.keyword_span.clone(),
-                    note: None,
-                    help: None,
-                };
+                let e = ParserError::err_use_imported_file_has_error(
+                    self.file_path.clone(),
+                    use_stmt,
+                    def_file.errors.len(),
+                );
                 self.errors.push(e);
             }
         }
@@ -218,25 +217,34 @@ impl CodeFile {
         &mut self,
         struct_field_def_stmt: &crate::parser::ast::stmt::StructFieldDefStmt,
     ) {
-        let e = ParserError {
-            error_code: None,
-            file_path: self.file_path.clone(),
-            msg: format!("字段定义在这里是不允许的."),
-            span: Span {
+        let e = ParserError::err_field_def_not_allow_in_here(
+            self.file_path.clone(),
+            Span {
                 start: struct_field_def_stmt.field_name_span.start.clone(),
                 end: struct_field_def_stmt.end_span().end,
             },
-            note: Some(format!("")),
-
-            help: Some(format!("将字段定义移动道 typedef 文件中.")),
-        };
-
+        );
         self.errors.push(e);
+
+        // let e = ParserError {
+        //     error_code: 0000,
+        //     file_path: self.file_path.clone(),
+        //     msg: format!("字段定义在这里是不允许的."),
+        //     span: Span {
+        //         start: struct_field_def_stmt.field_name_span.start.clone(),
+        //         end: struct_field_def_stmt.end_span().end,
+        //     },
+        //     note: Some(format!("")),
+
+        //     help: Some(format!("将字段定义移动道 typedef 文件中.")),
+        // };
+
+        // self.errors.push(e);
     }
 
     fn parse_struct_def(&mut self, struct_def: &crate::parser::ast::stmt::StructDef) {
         let e = ParserError {
-            error_code: None,
+            error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("字段定义在这里是不允许的."),
             span: Span {
@@ -252,7 +260,7 @@ impl CodeFile {
 
     fn parse_enum_def(&mut self, enum_def: &crate::parser::ast::stmt::EnumDef) {
         let e = ParserError {
-            error_code: None,
+            error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("类型定义在这里是不允许的."),
             span: enum_def.name_span.clone(),
@@ -266,7 +274,7 @@ impl CodeFile {
 
     fn parse_type_def(&mut self, type_def_stmt: &crate::parser::ast::stmt::TypeDefStmt) {
         let e = ParserError {
-            error_code: None,
+            error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("类型定义在这里是不允许的."),
             span: type_def_stmt.get_span(),
@@ -310,7 +318,7 @@ impl CodeFile {
         {
             if !self.fields.is_empty() {
                 let e = ParserError {
-                    error_code: None,
+                    error_code: 0000,
                     file_path: self.file_path.clone(),
                     msg: format!("`use` 只能在文件的最开头."),
                     span: use_stmt.keyword_span.clone(),
@@ -365,7 +373,7 @@ impl CodeFile {
         }
     }
 
-    // #[allow(dead_code)]
+    #[allow(dead_code)]
     fn type_check_for_array(
         &mut self,
         inner_type: Box<CbmlType>,
@@ -383,7 +391,7 @@ impl CodeFile {
 
                 Ok(())
             }
-            LiteralKind::Default => Ok(()),
+            // LiteralKind::Default => Ok(()),
             _ => {
                 let e = ParserError::err_mismatched_types(
                     self.file_path.clone(),
@@ -404,24 +412,24 @@ impl CodeFile {
     // fn is_same_type(&self, need_type: &CbmlType, found: &LiteralKind) -> bool {
     fn is_same_type(&self, need_type: &CbmlType, found: &Literal) -> bool {
         let kind = &found.kind;
-        if let LiteralKind::Default = kind {
-            return true;
-        }
+        // if let LiteralKind::Default = kind {
+        //     return true;
+        // }
 
         match need_type.kind.clone() {
             CbmlTypeKind::String => match kind {
                 LiteralKind::String { .. } => true,
-                LiteralKind::Default => true,
+                // LiteralKind::Default => true,
                 _ => false,
             },
             CbmlTypeKind::Number => match kind {
                 LiteralKind::Number(_) => true,
-                LiteralKind::Default => true,
+                // LiteralKind::Default => true,
                 _ => false,
             },
             CbmlTypeKind::Bool => match kind {
                 LiteralKind::Boolean(_) => true,
-                LiteralKind::Default => true,
+                // LiteralKind::Default => true,
                 _ => false,
             },
             CbmlTypeKind::Any => true,
@@ -435,7 +443,7 @@ impl CodeFile {
                         }
                         return literals.iter().all(|x| self.is_same_type(&inner_type, x));
                     }
-                    LiteralKind::Default => true,
+                    // LiteralKind::Default => true,
                     _ => false,
                 }
             }
@@ -483,13 +491,12 @@ impl CodeFile {
 
                         return did_it_same;
                     }
-                    LiteralKind::Todo => {
-                        // 不检查 todo.
+                    // LiteralKind::Todo => {
+                    //     // 不检查 todo.
 
-                        return true;
-                    }
-                    LiteralKind::Default => todo!("自定义 struct 类型的默认值暂时还未支持"),
-
+                    //     return true;
+                    // }
+                    // LiteralKind::Default => todo!("自定义 struct 类型的默认值暂时还未支持"),
                     _ => false,
                 }
             }
@@ -633,9 +640,24 @@ impl CodeFile {
             }
         }
     }
-    // 缺失字段检查, 检查 struct 中定义了却没有赋值的字段.
+    /// 缺失字段检查, 检查 struct 中定义了却没有赋值的字段.
     #[allow(dead_code)]
     fn check_struct_field(&mut self) {}
+
+    /// adfsadfasdf: string default default
+    #[allow(dead_code)]
+    fn sadfasdf() {}
+
+    ///  
+    /// ```.def.cbml
+    /// name: string
+    /// ```
+    ///
+    /// ```cbml
+    /// name = default
+    /// ```
+    #[allow(dead_code)]
+    fn dafasfsadf() {}
 }
 
 impl CodeFile {
@@ -653,7 +675,7 @@ impl CodeFile {
 
         if (&file_path).ends_with(".def.cbml") {
             let e = ParserError {
-                error_code: None,
+                error_code: 0000,
                 file_path,
                 msg: format!("以 .def.cbml 的是类型定义文件."),
                 span: Span::empty(),
@@ -685,7 +707,7 @@ impl CodeFile {
 
         if (&file_path).ends_with(".def.cbml") {
             let e = ParserError {
-                error_code: None,
+                error_code: 0000,
                 file_path,
                 msg: format!("以 .def.cbml 的是类型定义文件."),
                 span: Span::empty(),
@@ -778,5 +800,55 @@ impl CodeFile {
         }
 
         return re;
+    }
+
+    pub fn to_cbml_value(&mut self) -> Result<CbmlValue, Vec<ParserError>> {
+        {
+            self.error_check();
+            if !self.errors.is_empty() {
+                return Err(self.errors.clone());
+            }
+        }
+
+        // field_name = value
+        let mut root: HashMap<String, CbmlValue> = HashMap::new();
+
+        for x in &self.fields {
+            let re = self.kind_to_value(x.clone())?;
+
+            root.insert(x.name.clone(), re);
+        }
+
+        return Ok(CbmlValue::Struct(root));
+    }
+
+    fn kind_to_value(&self, f: FieldAsign) -> Result<CbmlValue, Vec<ParserError>> {
+        match f.value.kind {
+            LiteralKind::String(s) => Ok(CbmlValue::String(s)),
+            LiteralKind::Number(n) => Ok(CbmlValue::Number(n)),
+            LiteralKind::Boolean(b) => Ok(CbmlValue::Boolean(b)),
+            LiteralKind::Array(literals) => Ok(CbmlValue::Array(
+                literals.iter().map(|x| x.to_cbml_value()).collect(),
+            )),
+            LiteralKind::Struct(asignment_stmts) => {
+                let mut fields: HashMap<String, CbmlValue> = HashMap::new();
+
+                for x in asignment_stmts {
+                    fields.insert(x.field_name.clone(), x.value.to_cbml_value());
+                }
+
+                return Ok(CbmlValue::Struct(fields));
+            }
+            LiteralKind::LiteralNone => Ok(CbmlValue::None),
+            LiteralKind::EnumFieldLiteral {
+                field_name,
+                literal,
+                ..
+            } => Ok(CbmlValue::EnumField(
+                field_name,
+                Box::new(literal.to_cbml_value()),
+            )),
+            // LiteralKind::Todo => todo!(),
+        }
     }
 }

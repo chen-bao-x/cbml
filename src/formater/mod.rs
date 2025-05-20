@@ -1,7 +1,7 @@
-use crate::cbml_project::types::FieldDef;
-use crate::cbml_value::value::*;
+use crate::cbml_data::cbml_value::*;
 use crate::parser::ast::stmt::*;
 
+/// 输出为 cbml 源代码.
 pub trait ToCbmlCode {
     fn to_cbml_code(&self, deepth: usize) -> String;
 }
@@ -62,6 +62,7 @@ impl ToCbmlCode for Vec<StmtKind> {
         return re;
     }
 }
+
 impl ToCbmlCode for StmtKind {
     fn to_cbml_code(&self, deepth: usize) -> String {
         match self {
@@ -297,17 +298,16 @@ impl ToCbmlCode for LiteralKind {
                 let mut re = String::new();
                 re.push_str("none");
                 return re;
-            }
-            LiteralKind::Todo => {
-                let mut re = String::new();
-                re.push_str("todo");
-                return re;
-            }
-            LiteralKind::Default => {
-                let mut re = String::new();
-                re.push_str("default");
-                return re;
-            }
+            } // LiteralKind::Todo => {
+              //     let mut re = String::new();
+              //     re.push_str("todo");
+              //     return re;
+              // }
+              // LiteralKind::Default => {
+              //     let mut re = String::new();
+              //     re.push_str("default");
+              //     return re;
+              // }
         }
     }
 }
@@ -316,7 +316,7 @@ impl ToCbmlCode for TypeSignStmt {
     fn to_cbml_code(&self, deepth: usize) -> String {
         let mut re = String::new();
         re.push_str(&self.kind.to_cbml_code(deepth));
-        re.push_str("\n");
+        // re.push_str("\n");
 
         return re;
     }
@@ -335,15 +335,20 @@ impl ToCbmlCode for TypeSignStmtKind {
                 match &anonymous_type_def_stmt.kind {
                     AnonymousTypeDefKind::Enum { fields } => {
                         let mut str = String::new();
-                        str.push_str(&format!("enum {{",));
+                        str.push_str(&format!("enum {{\n",));
+
                         for field in fields {
                             str.push_str(&format!(
-                                "{}( {} )\n ",
+                                "{}{}({})\n",
+                                "    ".repeat(deepth + 1),
                                 field.field_name,
-                                field._type.to_cbml_code(deepth)
+                                field._type.to_cbml_code(deepth + 1)
                             ));
                         }
-                        str.push_str(r"}");
+
+                        str.push_str(&"    ".repeat(deepth));
+                        str.push_str("}");
+
                         return str;
                     }
                     AnonymousTypeDefKind::Struct(struct_field_def_stmts) => {
@@ -439,6 +444,7 @@ impl ToCbmlCode for UnionDef {
 
 // CbmlValue
 
+use crate::cbml_data::cbml_type::CbmlType;
 impl ToCbmlCode for CbmlType {
     fn to_cbml_code(&self, deepth: usize) -> String {
         self.kind.to_cbml_code(deepth)
@@ -481,28 +487,24 @@ impl ToCbmlCode for CbmlValue {
             }
             CbmlValue::Struct(hash_map) => {
                 let mut re = String::new();
-                re.push_str("{");
+                re.push_str("{\n");
 
-                {
-                    let newline_style: String = hash_map
-                        .iter()
-                        .map(|x| x.1.to_cbml_code(deepth + 1)) // 每一个 stmt 转换为代码.
-                        .fold("\n".to_string(), |mut a, b| {
-                            a.push_str(&b);
-
-                            a.push('\n'); // 添加分隔符
-                            a
-                        });
-
-                    re.push_str(&newline_style);
-                    re.push_str(&"    ".repeat(deepth));
-                    re.push_str("}");
+                for (name, val) in hash_map {
+                    re.push_str(&format!(
+                        "{}{}({})\n",
+                        "    ".repeat(deepth + 1),
+                        name,
+                        val.to_cbml_code(deepth + 1)
+                    ));
                 }
+                re.push_str(&"    ".repeat(deepth));
+                re.push_str("}");
 
                 return re;
             }
             CbmlValue::EnumField(name, cbml_value) => {
                 let mut re = String::new();
+
                 re.push_str(&format!("{} (", name));
                 re.push_str(&cbml_value.to_cbml_code(0));
                 re.push_str(")\n");
@@ -512,6 +514,7 @@ impl ToCbmlCode for CbmlValue {
     }
 }
 
+use crate::cbml_data::cbml_type::CbmlTypeKind;
 impl ToCbmlCode for CbmlTypeKind {
     fn to_cbml_code(&self, deepth: usize) -> String {
         match self {
@@ -539,24 +542,42 @@ impl ToCbmlCode for CbmlTypeKind {
                 re.push_str("{\n");
 
                 for x in fields {
-                    re.push_str(&format!("{}: {}\n", x.0, x.1.to_cbml_code(deepth)));
+                    re.push_str(&format!(
+                        "{}{}: {}\n",
+                        "    ".repeat(deepth + 1),
+                        x.0,
+                        x.1.to_cbml_code(deepth + 1)
+                    ));
                 }
-
-                re.push_str("}\n");
+                re.push_str(&"    ".repeat(deepth));
+                re.push_str("}");
 
                 return re;
             }
             CbmlTypeKind::Enum { fields } => {
                 let mut re = String::new();
+                re.push_str("enum {\n");
+
                 for x in fields {
-                    re.push_str(&format!("{}( {} )\n ", x.0, x.1.to_cbml_code(deepth)));
+                    let field_name = &x.0;
+                    let field_type = &x.1;
+
+                    re.push_str(&format!(
+                        "{}{}({})\n",
+                        "    ".repeat(deepth + 1),
+                        field_name,
+                        field_type.to_cbml_code(deepth + 1)
+                    ));
                 }
+                re.push_str(&"    ".repeat(deepth));
+                re.push_str("}");
                 return re;
             } // CbmlTypeKind::Custom { name } => name.to_string(),
         }
     }
 }
 
+use crate::cbml_project::types::FieldDef;
 impl ToCbmlCode for FieldDef {
     fn to_cbml_code(&self, deepth: usize) -> String {
         let mut re = String::new();

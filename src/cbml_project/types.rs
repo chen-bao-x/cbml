@@ -1,4 +1,4 @@
-use crate::cbml_value::value::CbmlType;
+use crate::cbml_data::cbml_type::*;
 use crate::lexer::token::Span;
 use crate::parser::ast::stmt::Literal;
 
@@ -11,6 +11,19 @@ pub struct FieldAsign {
     pub scope: ScopeID,
 }
 
+impl FieldAsign {
+    pub fn child_scope(&self) -> ScopeID {
+        // let asdf = vec![self.scope.clone(), ScopeID::new(self.name.clone())];
+
+        let mut re = String::new();
+        re.push_str(&self.scope.0);
+        re.push_str("::");
+        re.push_str(&self.name);
+
+        return ScopeID::new(re);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FieldDef {
     pub name: String,
@@ -20,6 +33,19 @@ pub struct FieldDef {
     pub span: Span,
     pub scope: ScopeID,
     pub doc: Option<String>,
+}
+
+impl FieldDef {
+    pub fn child_scope(&self) -> ScopeID {
+        // let asdf = vec![self.scope.clone(), ScopeID::new(self.name.clone())];
+
+        let mut re = String::new();
+        re.push_str(&self.scope.0);
+        re.push_str("::");
+        re.push_str(&self.name);
+
+        return ScopeID::new(re);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -35,10 +61,10 @@ pub struct TypeInfo {
 impl TypeInfo {
     pub fn get_type_id(&self) -> usize {
         match &self.ty.kind {
-            crate::cbml_value::value::CbmlTypeKind::String => 0,
-            crate::cbml_value::value::CbmlTypeKind::Number => 1,
-            crate::cbml_value::value::CbmlTypeKind::Bool => 2,
-            crate::cbml_value::value::CbmlTypeKind::Any => 3,
+            CbmlTypeKind::String => 0,
+            CbmlTypeKind::Number => 1,
+            CbmlTypeKind::Bool => 2,
+            CbmlTypeKind::Any => 3,
             _ => self.type_id,
         }
     }

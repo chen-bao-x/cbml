@@ -1,7 +1,8 @@
-use crate::cbml_value::value::{CbmlValue, ToCbmlValue};
+use std::collections::HashMap;
+
+use crate::cbml_data::cbml_value::{CbmlValue, ToCbmlValue};
 use crate::lexer::token::Span;
 use crate::parser::cbml_parser::NodeId;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Stmt {
@@ -185,32 +186,6 @@ pub struct Literal {
     pub span: Span,
 }
 
-impl ToCbmlValue for Literal {
-    fn to_cbml_value(&self) -> CbmlValue {
-        match self.kind.clone() {
-            LiteralKind::String(s) => CbmlValue::String(s),
-            LiteralKind::Number(n) => CbmlValue::Number(n),
-            LiteralKind::Boolean(b) => CbmlValue::Boolean(b),
-            LiteralKind::Array(literals) => {
-                CbmlValue::Array(literals.iter().map(|x| x.to_cbml_value()).collect())
-            }
-            LiteralKind::Struct(asignment_stmts) => {
-                let mut fields: HashMap<String, CbmlValue> = HashMap::new();
-
-                for x in asignment_stmts {
-                    fields.insert(x.field_name.clone(), x.value.to_cbml_value());
-                }
-
-                return CbmlValue::Struct(fields);
-            }
-            LiteralKind::LiteralNone => CbmlValue::None,
-            LiteralKind::EnumFieldLiteral { .. } => todo!(),
-            LiteralKind::Todo => todo!(),
-            LiteralKind::Default => todo!(),
-        }
-    }
-}
-
 /// 字面量
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiteralKind {
@@ -234,13 +209,16 @@ pub enum LiteralKind {
     // Optional,
     LiteralNone, // none
 
-    /// 这个可能会留下隐患, 暂时先不支持 todo 功能.
-    Todo,
-    Default,
+                 // /// 这个可能会留下隐患, 暂时先不支持 todo 功能.
+                 // Todo,
+                 // Default,
 }
 
-/// 为 匿名 union 推导类型.
-impl LiteralKind {}
+impl ToCbmlValue for Literal {
+    fn to_cbml_value(&self) -> CbmlValue {
+        self.kind.to_cbml_value()
+    }
+}
 
 impl ToCbmlValue for LiteralKind {
     fn to_cbml_value(&self) -> CbmlValue {
@@ -261,9 +239,11 @@ impl ToCbmlValue for LiteralKind {
                 return CbmlValue::Struct(fields);
             }
             LiteralKind::LiteralNone => CbmlValue::None,
-            LiteralKind::EnumFieldLiteral { .. } => todo!(),
-            LiteralKind::Todo => todo!(),
-            LiteralKind::Default => todo!(),
+            LiteralKind::EnumFieldLiteral {
+                field_name,
+                literal,
+                ..
+            } => CbmlValue::EnumField(field_name, Box::new(literal.to_cbml_value())),
         }
     }
 }

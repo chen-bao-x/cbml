@@ -1,28 +1,10 @@
 use super::ParserError;
-use super::ast::stmt::AnonymousTypeDefKind;
-use super::ast::stmt::AnonymousTypeDefStmt;
-use super::ast::stmt::AsignmentStmt;
-use super::ast::stmt::DocumentStmt;
-use super::ast::stmt::Literal;
-use super::ast::stmt::LiteralKind;
-use super::ast::stmt::Stmt;
-use super::ast::stmt::StmtKind;
-use super::ast::stmt::StructDef;
-use super::ast::stmt::StructFieldDefStmt;
-use super::ast::stmt::TypeDefStmt;
-use super::ast::stmt::TypeSignStmt;
-use super::ast::stmt::TypeSignStmtKind;
-use super::ast::stmt::UnionDef;
-use super::ast::stmt::UseStmt;
-use crate::{
-    cbml_value::value::ToCbmlValue,
-    dp,
-    lexer::token::{Position, Span, TokenID, TokenKind as tk},
-};
-use crate::{
-    lexer::token::Token,
-    parser::ast::stmt::{EnumDef, EnumFieldDef},
-};
+use super::ast::stmt::*;
+
+use crate::cbml_data::cbml_value::ToCbmlValue;
+use crate::dp;
+use crate::lexer::token::TokenKind as tk;
+use crate::lexer::token::*;
 
 #[derive(Debug, Clone, Eq, PartialOrd, Ord, PartialEq, Hash, Copy)]
 pub struct NodeId {
@@ -205,7 +187,7 @@ impl<'a> CbmlParser<'a> {
                     Ok(v) => v,
                     Err(_) => {
                         let e = ParserError {
-                            error_code: None,
+                            error_code: 0000,
                             file_path: self.file_path.clone(),
                             msg: format!("文登注释不能在这里使用."),
                             span: doc.span,
@@ -601,7 +583,8 @@ impl<'a> CbmlParser<'a> {
         }
     }
 
-    fn parse_array_literal(&mut self) -> Result<Vec<Literal>, ParserError> {
+    // fn parse_array_literal(&mut self) -> Result<Vec<Literal>, ParserError> {
+    fn parse_array_literal(&mut self) -> Result<Literal, ParserError> {
         // array_literal = LBracket elements Coma{0,1} RBracket
         // elements = Newline{0,} first_element tail_elements{0,}
         // first_element = Newline{0,} literal
@@ -611,13 +594,13 @@ impl<'a> CbmlParser<'a> {
         // RBracket = "]"
         // Coma = ","
 
-        let lbracket = self.consume(tk::LBracket)?.clone(); // LBracket
+        let _lbracket = self.consume(tk::LBracket)?.clone(); // LBracket
 
         let mut elements: Vec<Literal> = Vec::new();
 
         //  空数组  [ ]
         if let tk::RBracket = self.peek().kind {
-            let rbracket = self.consume(tk::RBracket)?;
+            let _rbracket = self.consume(tk::RBracket)?;
             // let re = Literal {
             //     kind: LiteralKind::Array(elements),
             //     span: Span {
@@ -627,7 +610,15 @@ impl<'a> CbmlParser<'a> {
             // };
 
             // return Ok(vec![re]);
-            return Ok(elements);
+            // return Ok(elements);
+
+            return Ok(Literal {
+                kind: LiteralKind::Array(elements),
+                span: Span {
+                    start: _lbracket.span.start,
+                    end: _rbracket.span.end.clone(),
+                },
+            });
         }
 
         {
@@ -660,11 +651,93 @@ impl<'a> CbmlParser<'a> {
         self.eat_zeor_or_multy(tk::NewLine)?; // NewLine{0,}
         _ = self.consume(tk::Comma); // Coma{0,1}
         self.eat_zeor_or_multy(tk::NewLine)?; // NewLine{0,}
-        self.consume(tk::RBracket)?; // RBracket
+        let _rbracket = self.consume(tk::RBracket)?; // RBracket
 
-        return Ok(elements);
+        return Ok(Literal {
+            kind: LiteralKind::Array(elements),
+            span: Span {
+                start: _lbracket.span.start,
+                end: _rbracket.span.end.clone(),
+            },
+        });
+
+        // return Ok(elements);
     }
 
+    fn parse_struct_literal(&mut self) -> Result<Literal, ParserError> {
+        // 结构体字面量
+        let lbrace = self.consume(tk::LBrace)?.clone();
+
+        self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
+
+        let mut fields: Vec<AsignmentStmt> = vec![];
+
+        let mut count = 0;
+        while !self.is_at_end() {
+            // 上一个字段结束
+            if count > 0 {
+                let k = self.peek().kind.clone();
+                if k.kind_is(&tk::Comma) {
+                    self.consume(tk::Comma)?;
+                } else if k.kind_is(&tk::NewLine) {
+                    self.consume(tk::NewLine)?;
+                }
+            }
+
+            _ = self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
+
+            let tok = self.peek();
+            match tok.kind.clone() {
+                tk::RBrace => {
+                    // 结构体结束
+                    break;
+                }
+
+                tk::Identifier(_) => {
+                    // 解析结构体字段
+
+                    let name_tok = self.consume(tk::Identifier("".into()))?.clone();
+
+                    if let tk::Identifier(name) = name_tok.kind.clone() {
+                        self.consume(tk::Asign)?;
+
+                        let value = self.parse_literal()?;
+
+                        fields.push(AsignmentStmt {
+                            field_name: name.clone(),
+                            value,
+                            field_name_span: name_tok.span,
+                        });
+                    }
+                }
+                x => {
+                    let sf = self.consume(x)?.clone();
+                    return Err(ParserError::err_unknow_token(self.file_path.clone(), sf));
+
+                    // return Err(ParserError {
+                    //     error_code: None,
+                    //     file_path: self.file_path.clone(),
+                    //     msg: format!("parse_literal error: unkonow token {:?}", tok.kind),
+                    //     span: tok.span.clone(),
+                    //     note: None,
+                    //     help: None,
+                    // });
+                }
+            }
+
+            count += 1;
+        }
+
+        let rbrace = self.consume(tk::RBrace)?;
+
+        return Ok(Literal {
+            kind: LiteralKind::Struct(fields),
+            span: Span {
+                start: lbrace.span.start.clone(),
+                end: rbrace.span.end.clone(),
+            },
+        });
+    }
     fn parse_literal(&mut self) -> Result<Literal, ParserError> {
         // 解析字面量
         let tok = self.peek().clone();
@@ -713,21 +786,24 @@ impl<'a> CbmlParser<'a> {
                 });
             }
 
-            tk::Todo => {
-                self.consume(tk::Todo)?;
+            // tk::Todo => {
+            //     self.consume(tk::Todo)?;
 
-                return Ok(Literal {
-                    kind: LiteralKind::Todo,
-                    span: tok.span,
-                });
-            }
+            //     return Ok(Literal {
+            //         kind: LiteralKind::Todo,
+            //         span: tok.span,
+            //     });
+            // }
             tk::Default => {
-                self.consume(tk::Default)?;
+                let asdf = self.file_path.clone();
+                let default_tok = self.consume(tk::Default)?;
 
-                return Ok(Literal {
-                    kind: LiteralKind::Default,
-                    span: tok.span,
-                });
+                let e = ParserError::err_default_keyword_not_allowed_in_literal(
+                    asdf,
+                    default_tok.span.clone(),
+                );
+
+                return Err(e);
             }
             tk::LBracket => {
                 // 数组字面量
@@ -735,87 +811,18 @@ impl<'a> CbmlParser<'a> {
                 // LBracket literal element{0,} coma{0,1} RBracket
                 // element = Coma literal
 
-                let arr = self.parse_array_literal()?;
-                return Ok(Literal {
-                    kind: LiteralKind::Array(arr),
-                    span: tok.span,
-                });
-                // return Ok(LiteralKind::Array(arr));
+                return self.parse_array_literal();
             }
             tk::LBrace => {
                 // 结构体字面量
-                let lbrace = self.consume(tk::LBrace)?.clone();
 
-                self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
-
-                let mut fields: Vec<AsignmentStmt> = vec![];
-
-                let mut count = 0;
-                while !self.is_at_end() {
-                    // 上一个字段结束
-                    if count > 0 {
-                        let k = self.peek().kind.clone();
-                        if k.kind_is(&tk::Comma) {
-                            self.consume(tk::Comma)?;
-                        } else if k.kind_is(&tk::NewLine) {
-                            self.consume(tk::NewLine)?;
-                        }
-                    }
-
-                    _ = self.eat_zeor_or_multy(tk::NewLine)?; // 可有可无的换行符.
-
-                    let tok = self.peek();
-                    match tok.kind.clone() {
-                        tk::RBrace => {
-                            // 结构体结束
-                            break;
-                        }
-
-                        tk::Identifier(_) => {
-                            // 解析结构体字段
-
-                            let name_tok = self.consume(tk::Identifier("".into()))?.clone();
-
-                            if let tk::Identifier(name) = name_tok.kind.clone() {
-                                self.consume(tk::Asign)?;
-
-                                let value = self.parse_literal()?;
-
-                                fields.push(AsignmentStmt {
-                                    field_name: name.clone(),
-                                    value,
-                                    field_name_span: name_tok.span,
-                                });
-                            }
-                        }
-                        _ => {
-                            return Err(ParserError {
-                                error_code: None,
-                                file_path: self.file_path.clone(),
-                                msg: format!("parse_literal error: unkonow token {:?}", tok.kind),
-                                span: tok.span.clone(),
-                                note: None,
-                                help: None,
-                            });
-                        }
-                    }
-
-                    count += 1;
-                }
-
-                let rbrace = self.consume(tk::RBrace)?;
-
-                return Ok(Literal {
-                    kind: LiteralKind::Struct(fields),
-                    span: Span {
-                        start: lbrace.span.start.clone(),
-                        end: rbrace.span.end.clone(),
-                    },
-                });
+                return self.parse_struct_literal();
             }
 
             tk::Identifier(_name) => {
-                let next = self.peek_next(1).kind.clone();
+                let next_tok = self.peek_next(1).clone();
+                // let next = self.peek_next(1).kind.clone();
+                let next = next_tok.kind.clone();
                 match next {
                     tk::LParen => {
                         // 解析 enum literal
@@ -827,12 +834,17 @@ impl<'a> CbmlParser<'a> {
                             span: self.peek().span.clone(),
                         });
                     }
-                    x => {
-                        return Err(ParserError::new(
+                    _ => {
+                        return Err(ParserError::err_unknow_token(
                             self.file_path.clone(),
-                            format!("parse_literal error: unkonow token {:?}", x.to_cbml_code()),
-                            tok.span,
+                            next_tok,
                         ));
+
+                        // return Err(ParserError::new(
+                        //     self.file_path.clone(),
+                        //     format!("parse_literal error: unkonow token {:?}", x.to_cbml_code()),
+                        //     tok.span,
+                        // ));
                     }
                 }
             }
@@ -840,14 +852,16 @@ impl<'a> CbmlParser<'a> {
                 // dp(format!("parse_literal error: unkonow token {:?}", tok));
                 // todo!();
 
-                return Err(ParserError::new(
-                    self.file_path.clone(),
-                    format!(
-                        "parse_literal error: unkonow token {:?}",
-                        tok.kind.to_cbml_code()
-                    ),
-                    tok.span,
-                ));
+                return Err(ParserError::err_unknow_token(self.file_path.clone(), tok));
+
+                // return Err(ParserError::new(
+                //     self.file_path.clone(),
+                //     format!(
+                //         "parse_literal error: unkonow token {:?}",
+                //         tok.kind.to_cbml_code()
+                //     ),
+                //     tok.span,
+                // ));
             }
         }
     }
@@ -1100,7 +1114,7 @@ impl<'a> CbmlParser<'a> {
 
             #[allow(unreachable_code)]
             return Err(ParserError {
-                error_code: None,
+                error_code: 0000,
                 file_path: self.file_path.clone(),
                 msg: format!("parse_struct_def error: unkonow token {:?}", name_tok.kind),
                 span: name_tok.span.clone(),
@@ -1127,7 +1141,8 @@ impl<'a> CbmlParser<'a> {
                 _ = self.consume(tk::Pipe); // pipe{0,1} 第一个 pipe 符号可有可无.
 
                 let literal = self.parse_literal()?; // literal
-                literals.push(literal);
+
+                literals.push(literal)
             } else {
                 // union_field = pipe literal
 
@@ -1521,7 +1536,7 @@ impl<'a> CbmlParser<'a> {
 mod tests {
     use super::*;
 
-    use crate::lexer::tokenizer;
+    use crate::lexer::tokenize;
 
     #[test]
     fn test_parser() {
@@ -1541,9 +1556,7 @@ arr_any = [1, true , "true", [1,2,3], {name = "string"}]
         
         "##;
 
-        use StmtKind::*;
-
-        let tokens = tokenizer("path", &code).tokens;
+        let tokens = tokenize("path", &code).tokens;
 
         // dp(format!("tokens: {:?}", tokens));
 

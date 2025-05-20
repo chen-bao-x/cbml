@@ -1,5 +1,5 @@
 pub mod cbml_project;
-pub mod cbml_value;
+pub mod cbml_data;
 pub mod formater;
 pub mod lexer;
 pub mod parser;
@@ -38,12 +38,7 @@ fn timeit(count: usize, f: fn()) {
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        cbml_project::{code_file::CodeFile, typedef_file::TypedefFile},
-        dp,
-        lexer::tokenizer,
-        // typecheck::typecheck,
-    };
+    use crate::cbml_project::{code_file::CodeFile, typedef_file::TypedefFile};
 
     #[test]
     pub fn test_parser() {
@@ -102,37 +97,37 @@ mod tests {
         });
     }
 
-    fn asdfasdfsdf(path: &str) {
-        use std::fs::read_to_string;
-        let code = read_to_string(path).unwrap();
-        dsafdasfsadf(path, &code);
-    }
+    // fn asdfasdfsdf(path: &str) {
+    //     use std::fs::read_to_string;
+    //     let code = read_to_string(path).unwrap();
+    //     dsafdasfsadf(path, &code);
+    // }
 
-    fn dsafdasfsadf(path: &str, code: &str) {
-        use crate::parser::cbml_parser::CbmlParser;
+    // fn dsafdasfsadf(path: &str, code: &str) {
+    //     use crate::parser::cbml_parser::CbmlParser;
 
-        let lexer_result = tokenizer(path, code);
+    //     let lexer_result = tokenizer(path, code);
 
-        lexer_result.errors.iter().for_each(|x| {
-            println!("{}", x.lookup(code));
-        });
+    //     lexer_result.errors.iter().for_each(|x| {
+    //         println!("{}", x.lookup(code));
+    //     });
 
-        let tokens = lexer_result.tokens;
+    //     let tokens = lexer_result.tokens;
 
-        // dp(format!("tokens: {:?}", tokens));
+    //     // dp(format!("tokens: {:?}", tokens));
 
-        let mut parser = CbmlParser::new(path.to_string(), &tokens);
-        let re = parser.parse();
+    //     let mut parser = CbmlParser::new(path.to_string(), &tokens);
+    //     let re = parser.parse();
 
-        drop(tokens);
+    //     drop(tokens);
 
-        if !re.errors.is_empty() {
-            re.errors.iter().for_each(|s| {
-                dp(format!("message: {:?}", s.msg));
-                // dp(format!("tok: {:?}", s.token));
-            });
-        }
-    }
+    //     if !re.errors.is_empty() {
+    //         re.errors.iter().for_each(|s| {
+    //             dp(format!("message: {:?}", s.msg));
+    //             // dp(format!("tok: {:?}", s.token));
+    //         });
+    //     }
+    // }
 }
 
 /// debug_println.

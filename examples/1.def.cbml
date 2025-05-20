@@ -29,38 +29,22 @@ package: {
 }
 asdfadsf: 1 | 2 | 3 
 opt_string: ?string
-
 opt_number: ?number
-
 opt_boolean: ?bool
-
-opt_arr_string: ?[string
-]
-
-opt_arr_number: ?[number ]
-
-opt_arr_boolean: ?[bool
-]
-
+opt_arr_string: ?[string]
+opt_arr_number: ?[number]
+opt_arr_boolean: ?[bool]
 opt_struct: ?{
     name: string
 }
-
 opt_struct_2: ?{
     name: string
     age: number
 }
-
 opt_union: ?1 | 2 | 3 
-
 opt_any: ?any
-
 opt_opt_number: ??number
-
-
-arr_arr_number: [[number
-]
-]
+arr_arr_number: [[number]]
 number_default: number default 99
 tree: {
     name: string
@@ -91,50 +75,49 @@ tree: {
     }
 }
 opt: 1 | 2 | 23 
-// 做类型检查时, 需要先确定 val 的类型, 里面的字段类型才能被确定.
-
+/// 做类型检查时, 需要先确定 val 的类型, 里面的字段类型才能被确定.
 val: {
     name: string
     obj: {
         age: number
     }
 }
-dependencies: [enum {ssh( {
+dependencies: [enum {
+        ssh({
+            name: string
+            git: string
+            branch: string
+        })
+        version({
+            name: string
+            varsion: string
+        })
+    }]
+enum_1: enum {
+    ssh({
         name: string
         git: string
         branch: string
-    }
- )
- version( {
+    })
+}
+enum_2: enum {
+    ssh({
         name: string
-        varsion: string
-    }
- )
- }
-]
-enum_1: enum {ssh( {
-    name: string
-    git: string
-    branch: string
+        git: string
+        branch: string
+        adsfasdf: enum {
+            ssh({
+                name: string
+                git: string
+                branch: string
+            })
+        }
+    })
 }
- )
- }
-enum_2: enum {ssh( {
-    name: string
-    git: string
-    branch: string
-}
- )
- }
 name: string default "hello"
 age: ?number
-
 haha: {
     name: string
-
-
-
-
     age: number
 }
 sadfdsaf: string
@@ -144,7 +127,12 @@ asdf: string
 asdfsadfdsa: string
 asdfdsaf: string
 adsfadsfasdfsadf: string
-sadf_34252435: 2345 
+/// document for sadf_34252435
+sadf_34252435: 2345 | 7890 
 sdafdsaf: string
 sadfsdf: string
 fdasdf: string
+// a_123456: 1 | 2 | none | "" | default 
+
+adfsadfasdf: string default "100"
+adsf: bool
