@@ -1,4 +1,4 @@
-use crate::parser::parser_error::ParserError;
+use crate::parser::parser_error::CbmlError;
 
 use super::token::{Position, Span, Token, TokenID};
 
@@ -34,7 +34,7 @@ pub struct Lexer {
 
 pub struct LexerResult {
     pub tokens: Vec<Token>,
-    pub errors: Vec<ParserError>,
+    pub errors: Vec<CbmlError>,
 }
 
 impl Lexer {
@@ -94,7 +94,7 @@ impl Lexer {
 
         let mut tokens = Vec::new();
 
-        let mut errors: Vec<ParserError> = Vec::new();
+        let mut errors: Vec<CbmlError> = Vec::new();
 
         while let Some(ch) = self.peek() {
             match self.state {
@@ -253,16 +253,19 @@ impl Lexer {
 
                             let loc = self.get_pos();
 
-                            let tok = Token::new(tk::Invalid(x), loc, self.gen_token_id());
+                            // let tok = Token::new(tk::Invalid(x), loc, self.gen_token_id());
 
-                            errors.push(ParserError {
-                                error_code: 0000,
-                                file_path: self.file_path.clone(),
-                                msg: format!("未识别的字符 {}", x),
-                                span: tok.span,
-                                note: None,
-                                help: None,
-                            });
+                            let e =
+                                CbmlError::err_invalid_character(self.file_path.clone(), loc, x);
+                            errors.push(e);
+                            // errors.push(ParserError {
+                            //     error_code: 0000,
+                            //     file_path: self.file_path.clone(),
+                            //     msg: format!("invalid character: {}", x),
+                            //     span: tok.span,
+                            //     note: None,
+                            //     help: None,
+                            // });
                         }
                     }
                 }
@@ -303,7 +306,7 @@ impl Lexer {
                             let binary_value = match u64::from_str_radix(&self.current[2..], 2) {
                                 Ok(f) => f,
                                 Err(e) => {
-                                    errors.push(ParserError {
+                                    errors.push(CbmlError {
                                         error_code: 0000,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
@@ -356,7 +359,7 @@ impl Lexer {
                             let v = match u64::from_str_radix(&self.current[2..], 16) {
                                 Ok(f) => f,
                                 Err(e) => {
-                                    errors.push(ParserError {
+                                    errors.push(CbmlError {
                                         error_code: 0000,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
@@ -407,7 +410,7 @@ impl Lexer {
                                     //     note: Some("number 中最多有一个小数点.".into()),
                                     //     help: None,
                                     // });
-                                    errors.push(ParserError {
+                                    errors.push(CbmlError {
                                         error_code: 0000,
                                         file_path: self.file_path.clone(),
                                         msg: format!("无效的数字格式 {:?}", self.current),
@@ -435,7 +438,7 @@ impl Lexer {
                             let num: f64 = match self.current.parse() {
                                 Ok(f) => f,
                                 Err(e) => {
-                                    errors.push(ParserError {
+                                    errors.push(CbmlError {
                                         error_code: 0000,
                                         file_path: self.file_path.clone(),
                                         msg: e.to_string(),
@@ -717,7 +720,7 @@ impl Lexer {
                                     self.current.clear();
                                 }
                             } else {
-                                errors.push(ParserError {
+                                errors.push(CbmlError {
                                     error_code: 0000,
                                     file_path: self.file_path.clone(),
                                     msg: format!("语法错误: 需要一个 /"),
@@ -758,7 +761,7 @@ impl Lexer {
                         let num: f64 = match self.current.parse() {
                             Ok(f) => f,
                             Err(e) => {
-                                errors.push(ParserError {
+                                errors.push(CbmlError {
                                     error_code: 0000,
                                     file_path: self.file_path.clone(),
                                     msg: e.to_string(),
@@ -792,7 +795,7 @@ impl Lexer {
                             let v = match u64::from_str_radix(&self.current[2..], 16) {
                                 Ok(f) => f,
                                 Err(e) => {
-                                    errors.push(ParserError {
+                                    errors.push(CbmlError {
                                         error_code: 0000,
                                         note: None,
                                         help: None,
@@ -838,7 +841,7 @@ impl Lexer {
                         let binary_value = match u64::from_str_radix(&self.current[2..], 2) {
                             Ok(f) => f,
                             Err(e) => {
-                                errors.push(ParserError {
+                                errors.push(CbmlError {
                                     error_code: 0000,
                                     note: None,
                                     help: None,

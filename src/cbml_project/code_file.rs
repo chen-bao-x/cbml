@@ -1,35 +1,206 @@
 use super::typedef_file::TypedefFile;
-use super::types::*;
+use super::types::FieldAsign;
+use super::types::FieldDef;
+use super::types::ScopeID;
+use super::types::TypeInfo;
 
+use crate::ToCbml;
+use crate::ToCbmlValue;
 use crate::cbml_data::cbml_type::CbmlType;
-
-use crate::cbml_data::cbml_type::CbmlTypeKind;
 use crate::cbml_data::cbml_value::CbmlValue;
-use crate::cbml_data::cbml_value::ToCbmlValue;
-use crate::formater::ToCbmlCode;
 use crate::lexer::token::*;
 use crate::lexer::tokenize;
 use crate::parser::CbmlParser;
 use crate::parser::ast::stmt::*;
-use crate::parser::parser_error::ParserError;
+use crate::parser::parser_error::CbmlError;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+/// 对一个 .cbml 文件的抽象.
 #[derive(Debug, Clone)]
 pub struct CodeFile {
+    /// 这个 .cbml 文件的位置.
     pub file_path: String,
 
-    pub fields: Vec<FieldAsign>,
-
-    pub use_url: Option<String>,
     pub typedef_file: Option<TypedefFile>,
 
-    pub errors: Vec<ParserError>,
+    /// top fields and child fields.
+    pub fields: Vec<FieldAsign>,
 
+    /// 检查到的错误.
+    pub errors: Vec<CbmlError>,
+
+    /// fn check_unasigned_field(&mut self) 会用到这个属性.
     last_line_span: Span,
+
     field_id: usize,
     /// 解析 ast 时记录正在解析的语句所在的 scope.
     _current_scope: Vec<ScopeID>,
+}
+
+impl CodeFile {
+    ///
+    pub fn new(file_path: String) -> Self {
+        let mut f = Self {
+            file_path: file_path.clone(),
+            fields: Vec::new(),
+            // use_url: None,
+            typedef_file: None,
+            errors: Vec::new(),
+            last_line_span: Span::empty(),
+            field_id: 0,
+            _current_scope: Vec::new(),
+        };
+
+        if (&file_path).ends_with(".def.cbml") {
+            let e = CbmlError {
+                error_code: 0000,
+                file_path,
+                msg: format!("以 .def.cbml 的是类型定义文件."),
+                span: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            f.errors.push(e);
+        } else {
+            f.parse_file(&file_path);
+        };
+
+        f.error_check();
+
+        return f;
+    }
+
+    /// 如果没有 file_path, 则使用空字符串: String::new().
+    pub fn new_from(file_path: String, code: &str) -> Self {
+        let mut f = Self {
+            file_path: file_path.clone(),
+            fields: Vec::new(),
+            // use_url: None,
+            typedef_file: None,
+            errors: Vec::new(),
+            last_line_span: Span::empty(),
+            field_id: 0,
+            _current_scope: Vec::new(),
+        };
+
+        if (&file_path).ends_with(".def.cbml") {
+            let e = CbmlError {
+                error_code: 0000,
+                file_path,
+                msg: format!("以 .def.cbml 的是类型定义文件."),
+                span: Span::empty(),
+                note: None,
+                help: None,
+            };
+
+            f.errors.push(e);
+        } else {
+            f.parse_code(code);
+        };
+
+        f.error_check();
+
+        return f;
+    }
+
+    pub fn get_all_errors(&self) -> Vec<CbmlError> {
+        let mut re: Vec<CbmlError> = vec![];
+
+        re.extend_from_slice(&self.errors);
+
+        return re;
+    }
+
+    /// 获取字段的定义.
+    pub fn get_field_def(&self, field_name: &String, scope: ScopeID) -> Option<&FieldDef> {
+        let Some(def_file) = &self.typedef_file else {
+            return None;
+        };
+
+        let asdf = def_file.fields_map.get(&(field_name.clone(), scope));
+
+        return asdf;
+    }
+
+    /// 获取字段定义的类型.
+    pub fn get_field_defined_type(&self, field: &FieldAsign) -> Option<&TypeInfo> {
+        let Some(field_def) = self.get_field_def(&field.name, field.scope.clone()) else {
+            return None;
+        };
+
+        return Some(&field_def.type_);
+    }
+
+    /// 获取定义了却并未赋值的 top level field.
+    pub fn get_unasigned_fields(&self) -> Vec<&FieldDef> {
+        let Some(def_file) = &self.typedef_file else {
+            return Vec::new();
+        };
+
+        let mut unasigned_fields: Vec<&FieldDef> = Vec::new();
+
+        let mut asigned_fields = self.fields.iter().map(|x| &x.name).collect::<HashSet<_>>();
+
+        // 找出定义了却没有赋值的 top level 字段,
+        {
+            for x in def_file.get_all_top_fields() {
+                let remoed = asigned_fields.remove(&x.name);
+                if !remoed {
+                    unasigned_fields.push(x);
+                }
+            }
+        }
+
+        return unasigned_fields;
+    }
+
+    /// goto_difinition 的时候会用到.
+    pub fn get_field_def_by_location(&self, line: u32, colunm: u32) -> Vec<&FieldDef> {
+        let mut matchd_field_asign: Vec<&FieldAsign> = Vec::new();
+
+        for x in &self.fields {
+            if x.span.is_contain(line, colunm) {
+                matchd_field_asign.push(x);
+            }
+        }
+
+        let mut re: Vec<&FieldDef> = Vec::new();
+        for x in matchd_field_asign {
+            if let Some(def) = self.get_field_def(&x.name, x.scope.clone()) {
+                re.push(def);
+            };
+        }
+
+        return re;
+    }
+
+    fn kind_to_value(&self, f: FieldAsign) -> CbmlValue {
+        match f.value.kind {
+            LiteralKind::String(s) => CbmlValue::String(s),
+            LiteralKind::Number(n) => CbmlValue::Number(n),
+            LiteralKind::Boolean(b) => CbmlValue::Boolean(b),
+            LiteralKind::Array(literals) => {
+                CbmlValue::Array(literals.iter().map(|x| x.to_cbml_value()).collect())
+            }
+            LiteralKind::Struct(asignment_stmts) => {
+                let mut fields: HashMap<String, CbmlValue> = HashMap::new();
+
+                for x in asignment_stmts {
+                    fields.insert(x.field_name.clone(), x.value.to_cbml_value());
+                }
+
+                return CbmlValue::Struct(fields);
+            }
+            LiteralKind::LiteralNone => CbmlValue::None,
+            LiteralKind::EnumFieldLiteral {
+                field_name,
+                literal,
+                ..
+            } => CbmlValue::EnumField(field_name, Box::new(literal.to_cbml_value())),
+        }
+    }
 }
 
 impl CodeFile {
@@ -128,7 +299,7 @@ impl CodeFile {
             return ();
         };
 
-        self.use_url = Some(use_stmt.get_use_url());
+        // self.use_url = Some(use_stmt.get_use_url());
 
         // 检测这个文件是否能打开.
         {
@@ -136,7 +307,7 @@ impl CodeFile {
             match asdf {
                 Ok(f) => _ = f.try_clone(),
                 Err(e) => {
-                    let e = ParserError {
+                    let e = CbmlError {
                         error_code: 0000,
                         file_path: use_stmt.get_use_url(),
                         msg: format!("{}", e),
@@ -154,7 +325,7 @@ impl CodeFile {
         // 错误检查.
         {
             if !def_file.errors.is_empty() {
-                let e = ParserError::err_use_imported_file_has_error(
+                let e = CbmlError::err_use_imported_file_has_error(
                     self.file_path.clone(),
                     use_stmt,
                     def_file.errors.len(),
@@ -217,7 +388,7 @@ impl CodeFile {
         &mut self,
         struct_field_def_stmt: &crate::parser::ast::stmt::StructFieldDefStmt,
     ) {
-        let e = ParserError::err_field_def_not_allow_in_here(
+        let e = CbmlError::err_field_def_not_allow_in_here(
             self.file_path.clone(),
             Span {
                 start: struct_field_def_stmt.field_name_span.start.clone(),
@@ -243,7 +414,7 @@ impl CodeFile {
     }
 
     fn parse_struct_def(&mut self, struct_def: &crate::parser::ast::stmt::StructDef) {
-        let e = ParserError {
+        let e = CbmlError {
             error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("字段定义在这里是不允许的."),
@@ -259,7 +430,7 @@ impl CodeFile {
     }
 
     fn parse_enum_def(&mut self, enum_def: &crate::parser::ast::stmt::EnumDef) {
-        let e = ParserError {
+        let e = CbmlError {
             error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("类型定义在这里是不允许的."),
@@ -273,7 +444,7 @@ impl CodeFile {
     }
 
     fn parse_type_def(&mut self, type_def_stmt: &crate::parser::ast::stmt::TypeDefStmt) {
-        let e = ParserError {
+        let e = CbmlError {
             error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("类型定义在这里是不允许的."),
@@ -317,7 +488,7 @@ impl CodeFile {
         // 在 use 语句之前不能有 赋值语句.
         {
             if !self.fields.is_empty() {
-                let e = ParserError {
+                let e = CbmlError {
                     error_code: 0000,
                     file_path: self.file_path.clone(),
                     msg: format!("`use` 只能在文件的最开头."),
@@ -332,8 +503,9 @@ impl CodeFile {
 
         // use 语句只能使用一次.
         {
-            if self.use_url.is_some() || self.typedef_file.is_some() {
-                let e = ParserError::err_use_can_only_def_onece(
+            // if self.use_url.is_some() || self.typedef_file.is_some() {
+            if self.typedef_file.is_some() {
+                let e = CbmlError::err_use_can_only_def_onece(
                     self.file_path.clone(),
                     use_stmt.url_span.clone(),
                 );
@@ -345,6 +517,7 @@ impl CodeFile {
     }
 
     fn error_check(&mut self) {
+        self.check_duplicated_field_name();
         if let Some(def_file) = &self.typedef_file {
             if !def_file.errors.is_empty() {
                 return;
@@ -353,7 +526,6 @@ impl CodeFile {
             return;
         };
 
-        self.check_duplicated_file_field_name();
         self.check_unasigned_field();
         self.check_type();
 
@@ -379,7 +551,7 @@ impl CodeFile {
         inner_type: Box<CbmlType>,
         found: &LiteralKind,
         span: Span,
-    ) -> Result<(), ParserError> {
+    ) -> Result<(), CbmlError> {
         //
         match found {
             LiteralKind::Array(literals) => {
@@ -393,16 +565,19 @@ impl CodeFile {
             }
             // LiteralKind::Default => Ok(()),
             _ => {
-                let e = ParserError::err_mismatched_types(
+                let e = CbmlError::err_mismatched_types(
                     self.file_path.clone(),
                     span,
-                    &CbmlType {
-                        kind: CbmlTypeKind::Array {
-                            inner_type: inner_type,
-                        },
+                    &CbmlType::Array {
+                        inner_type: inner_type,
                     }
-                    .to_cbml_code(0),
-                    &found.to_cbml_code(0),
+                    // &CbmlType {
+                    //     kind: CbmlTypeKind::Array {
+                    //         inner_type: inner_type,
+                    //     },
+                    // }
+                    .to_cbml(0),
+                    &found.to_cbml(0),
                 );
                 Err(e)
             }
@@ -416,24 +591,24 @@ impl CodeFile {
         //     return true;
         // }
 
-        match need_type.kind.clone() {
-            CbmlTypeKind::String => match kind {
+        match need_type.clone() {
+            CbmlType::String => match kind {
                 LiteralKind::String { .. } => true,
                 // LiteralKind::Default => true,
                 _ => false,
             },
-            CbmlTypeKind::Number => match kind {
+            CbmlType::Number => match kind {
                 LiteralKind::Number(_) => true,
                 // LiteralKind::Default => true,
                 _ => false,
             },
-            CbmlTypeKind::Bool => match kind {
+            CbmlType::Bool => match kind {
                 LiteralKind::Boolean(_) => true,
                 // LiteralKind::Default => true,
                 _ => false,
             },
-            CbmlTypeKind::Any => true,
-            CbmlTypeKind::Array { inner_type } => {
+            CbmlType::Any => true,
+            CbmlType::Array { inner_type } => {
                 // return self.type_check_for_array(inner_type, found);
                 //
                 match kind {
@@ -447,7 +622,7 @@ impl CodeFile {
                     _ => false,
                 }
             }
-            CbmlTypeKind::Struct { mut fields } => {
+            CbmlType::Struct { mut fields } => {
                 //
                 {
                     fields.sort_by(|x, y| {
@@ -500,7 +675,7 @@ impl CodeFile {
                     _ => false,
                 }
             }
-            CbmlTypeKind::Optional {
+            CbmlType::Optional {
                 inner_type,
                 // span: _span,
             } => {
@@ -509,16 +684,14 @@ impl CodeFile {
                     _ => self.is_same_type(&inner_type, found),
                 };
             }
-            CbmlTypeKind::Union { allowed_values } => {
-                allowed_values.contains(&found.to_cbml_value())
-            }
-            CbmlTypeKind::Enum { fields } => match kind {
+            CbmlType::Union { allowed_values } => allowed_values.contains(&found.to_cbml_value()),
+            CbmlType::Enum { fields } => match kind {
                 LiteralKind::EnumFieldLiteral {
                     field_name,
                     literal,
                     ..
                 } => {
-                    // 检查 EnumFieldLiteral 的名字是否包含在 CbmlTypeKind::Enum fields 中.
+                    // 检查 EnumFieldLiteral 的名字是否包含在 CbmlType::Enum fields 中.
 
                     for x in fields {
                         if &x.0 == field_name {
@@ -530,21 +703,13 @@ impl CodeFile {
                 }
                 _ => false,
             },
-            // CbmlTypeKind::Custom { name } => {
-            //     // 1. get raw type from name
-            //     let Some(custom_type) = self.custom_to_raw(&name) else {
-            //         return false;
-            //     };
-
-            //     return self.is_same_type(&custom_type.clone(), literal);
-            // }
         }
     }
 
-    fn check_one_field_type(&self, field: &FieldAsign) -> Result<(), ParserError> {
+    fn check_one_field_type(&self, field: &FieldAsign) -> Result<(), CbmlError> {
         let Some(type_info) = self.get_field_defined_type(field) else {
             // 这个赋值的字段并未定义过.
-            let e = ParserError::err_unknow_field(
+            let e = CbmlError::err_unknow_field(
                 self.file_path.clone(),
                 field.span.clone(),
                 // &field.name,
@@ -564,11 +729,11 @@ impl CodeFile {
         } else {
             // 如果是结构体, 匹配里面每一个字段的类型, 找到出错的那个字段.
 
-            let e = ParserError::err_mismatched_types(
+            let e = CbmlError::err_mismatched_types(
                 self.file_path.clone(),
                 field.value.span.clone(),
-                &type_info.ty.to_cbml_code(0),
-                &field.value.kind.to_cbml_code(0),
+                &type_info.ty.to_cbml(0),
+                &field.value.kind.to_cbml(0),
             );
 
             return Err(e);
@@ -576,7 +741,7 @@ impl CodeFile {
     }
 
     // 字段重复检查, 一个字段只需要赋值一次.
-    fn check_duplicated_file_field_name(&mut self) {
+    fn check_duplicated_field_name(&mut self) {
         let mut seen: HashSet<(String, ScopeID)> = HashSet::new();
         let mut duplicates: Vec<&FieldAsign> = Vec::new();
 
@@ -586,11 +751,11 @@ impl CodeFile {
             }
         }
 
-        let errors: Vec<ParserError> = duplicates
+        let errors: Vec<CbmlError> = duplicates
             .iter()
             .map(|x| {
                 // ParserError::err_field_alredy_exits(self.file_path.clone(), x.span.clone(), &x.name)
-                ParserError::err_field_alredy_exits(
+                CbmlError::err_field_alredy_exits(
                     self.file_path.clone(),
                     x.span.clone(),
                     &format!("name: {}, scope: {}", x.name, x.scope.0),
@@ -611,7 +776,7 @@ impl CodeFile {
             return;
         }
 
-        let e = ParserError::err_has_fields_unasigned(file_path, unasigned_field, span);
+        let e = CbmlError::err_has_fields_unasigned(file_path, unasigned_field, span);
         self.errors.push(e);
     }
 
@@ -630,7 +795,7 @@ impl CodeFile {
                 }
                 None => {
                     // 这个赋值的字段并未定义过.
-                    let e = ParserError::err_unknow_field(
+                    let e = CbmlError::err_unknow_field(
                         self.file_path.clone(),
                         x.span.clone(),
                         &x.name,
@@ -643,212 +808,34 @@ impl CodeFile {
     /// 缺失字段检查, 检查 struct 中定义了却没有赋值的字段.
     #[allow(dead_code)]
     fn check_struct_field(&mut self) {}
-
-    /// adfsadfasdf: string default default
-    #[allow(dead_code)]
-    fn sadfasdf() {}
-
-    ///  
-    /// ```.def.cbml
-    /// name: string
-    /// ```
-    ///
-    /// ```cbml
-    /// name = default
-    /// ```
-    #[allow(dead_code)]
-    fn dafasfsadf() {}
 }
 
-impl CodeFile {
-    pub fn new(file_path: String) -> Self {
-        let mut f = Self {
-            file_path: file_path.clone(),
-            fields: Vec::new(),
-            use_url: None,
-            typedef_file: None,
-            errors: Vec::new(),
-            last_line_span: Span::empty(),
-            field_id: 0,
-            _current_scope: Vec::new(),
-        };
-
-        if (&file_path).ends_with(".def.cbml") {
-            let e = ParserError {
-                error_code: 0000,
-                file_path,
-                msg: format!("以 .def.cbml 的是类型定义文件."),
-                span: Span::empty(),
-                note: None,
-                help: None,
-            };
-
-            f.errors.push(e);
-        } else {
-            f.parse_file(&file_path);
-        };
-
-        f.error_check();
-
-        return f;
-    }
-
-    pub fn new_from(file_path: String, code: &str) -> Self {
-        let mut f = Self {
-            file_path: file_path.clone(),
-            fields: Vec::new(),
-            use_url: None,
-            typedef_file: None,
-            errors: Vec::new(),
-            last_line_span: Span::empty(),
-            field_id: 0,
-            _current_scope: Vec::new(),
-        };
-
-        if (&file_path).ends_with(".def.cbml") {
-            let e = ParserError {
-                error_code: 0000,
-                file_path,
-                msg: format!("以 .def.cbml 的是类型定义文件."),
-                span: Span::empty(),
-                note: None,
-                help: None,
-            };
-
-            f.errors.push(e);
-        } else {
-            f.parse_code(code);
-        };
-
-        f.error_check();
-
-        return f;
-    }
-
-    pub fn get_all_errors(&self) -> Vec<ParserError> {
-        let mut re: Vec<ParserError> = vec![];
-
-        re.extend_from_slice(&self.errors);
-
-        // let Some(def) = &self.typedef_file else {
-        //     return re;
-        // };
-
-        // re.extend_from_slice(&def.errors);
-
-        return re;
-    }
-
-    /// 获取字段的定义.
-    pub fn get_field_def(&self, field_name: &String, scope: ScopeID) -> Option<&FieldDef> {
-        let Some(def_file) = &self.typedef_file else {
-            return None;
-        };
-
-        let asdf = def_file.fields_map.get(&(field_name.clone(), scope));
-
-        return asdf;
-    }
-
-    /// 获取字段定义的类型.
-    pub fn get_field_defined_type(&self, field: &FieldAsign) -> Option<&TypeInfo> {
-        let Some(field_def) = self.get_field_def(&field.name, field.scope.clone()) else {
-            return None;
-        };
-
-        return Some(&field_def.type_);
-    }
-
-    /// 获取定义了却并未赋值的 top level field.
-    pub fn get_unasigned_fields(&self) -> Vec<&FieldDef> {
-        let Some(def_file) = &self.typedef_file else {
-            return Vec::new();
-        };
-
-        let mut unasigned_fields: Vec<&FieldDef> = Vec::new();
-
-        let mut asigned_fields = self.fields.iter().map(|x| &x.name).collect::<HashSet<_>>();
-
-        // 找出定义了却没有赋值的 top level 字段,
-        {
-            for x in def_file.get_all_top_fields() {
-                let remoed = asigned_fields.remove(&x.name);
-                if !remoed {
-                    unasigned_fields.push(x);
-                }
-            }
-        }
-
-        return unasigned_fields;
-    }
-
-    /// goto_difinition 的时候会用到.
-    pub fn get_field_def_by_location(&self, line: u32, colunm: u32) -> Vec<&FieldDef> {
-        let mut matchd_field_asign: Vec<&FieldAsign> = Vec::new();
+impl ToCbml for CodeFile {
+    fn to_cbml(&self, deepth: usize) -> String {
+        let mut re = String::new();
 
         for x in &self.fields {
-            if x.span.is_contain(line, colunm) {
-                matchd_field_asign.push(x);
-            }
-        }
-
-        let mut re: Vec<&FieldDef> = Vec::new();
-        for x in matchd_field_asign {
-            if let Some(def) = self.get_field_def(&x.name, x.scope.clone()) {
-                re.push(def);
-            };
+            re.push_str(&x.to_cbml(deepth));
+            re.push_str("\n");
         }
 
         return re;
     }
+}
 
-    pub fn to_cbml_value(&mut self) -> Result<CbmlValue, Vec<ParserError>> {
-        {
-            self.error_check();
-            if !self.errors.is_empty() {
-                return Err(self.errors.clone());
-            }
-        }
-
-        // field_name = value
+impl ToCbmlValue for CodeFile {
+    fn to_cbml_value(&self) -> CbmlValue {
         let mut root: HashMap<String, CbmlValue> = HashMap::new();
 
-        for x in &self.fields {
-            let re = self.kind_to_value(x.clone())?;
+        let root_id = ScopeID::new(String::new());
+        let top_fields: Vec<&FieldAsign> =
+            self.fields.iter().filter(|x| x.scope == root_id).collect();
 
+        for x in top_fields {
+            let re = self.kind_to_value(x.clone());
             root.insert(x.name.clone(), re);
         }
 
-        return Ok(CbmlValue::Struct(root));
-    }
-
-    fn kind_to_value(&self, f: FieldAsign) -> Result<CbmlValue, Vec<ParserError>> {
-        match f.value.kind {
-            LiteralKind::String(s) => Ok(CbmlValue::String(s)),
-            LiteralKind::Number(n) => Ok(CbmlValue::Number(n)),
-            LiteralKind::Boolean(b) => Ok(CbmlValue::Boolean(b)),
-            LiteralKind::Array(literals) => Ok(CbmlValue::Array(
-                literals.iter().map(|x| x.to_cbml_value()).collect(),
-            )),
-            LiteralKind::Struct(asignment_stmts) => {
-                let mut fields: HashMap<String, CbmlValue> = HashMap::new();
-
-                for x in asignment_stmts {
-                    fields.insert(x.field_name.clone(), x.value.to_cbml_value());
-                }
-
-                return Ok(CbmlValue::Struct(fields));
-            }
-            LiteralKind::LiteralNone => Ok(CbmlValue::None),
-            LiteralKind::EnumFieldLiteral {
-                field_name,
-                literal,
-                ..
-            } => Ok(CbmlValue::EnumField(
-                field_name,
-                Box::new(literal.to_cbml_value()),
-            )),
-            // LiteralKind::Todo => todo!(),
-        }
+        return CbmlValue::Struct(root);
     }
 }

@@ -1,25 +1,30 @@
+///! .def.cbml 文件的解析.
+use std::path::PathBuf;
+
 use super::types::*;
-use crate::cbml_data::cbml_type::{CbmlType, CbmlTypeKind};
+use crate::cbml_data::cbml_type::CbmlType;
 use crate::cbml_data::cbml_value::*;
 use crate::lexer::token::Span;
 use crate::lexer::tokenize;
 use crate::parser::CbmlParser;
 use crate::parser::ast::stmt::*;
-use crate::parser::parser_error::ParserError;
+use crate::parser::parser_error::CbmlError;
+use crate::{ToCbml, ToCbmlValue};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct TypedefFile {
     pub file_path: String,
 
+    /// 所有字段, 包裹子字段.
+    /// 顶级字段的 scope_id == ScopeID::empty()
     pub fields_map: HashMap<(String, ScopeID), FieldDef>,
 
-    pub errors: Vec<ParserError>,
+    pub errors: Vec<CbmlError>,
 
     /// 解析 ast 时记录正在解析的语句所在的 scope.
     _current_scope: Vec<ScopeID>,
 
-    // count: usize,
     _type_id: usize,
 }
 
@@ -38,7 +43,7 @@ impl TypedefFile {
         if file_path.ends_with(".def.cbml") {
             f.parse_file(&file_path);
         } else {
-            let e = ParserError {
+            let e = CbmlError {
                 file_path,
                 msg: format!("类型定义文件的文件名需要以 .def.cbml 结尾."),
                 span: Span::empty(),
@@ -68,7 +73,7 @@ impl TypedefFile {
         if file_path.ends_with(".def.cbml") {
             f.parse_code(code);
         } else {
-            let e = ParserError {
+            let e = CbmlError {
                 error_code: 0000,
                 file_path,
                 msg: format!("类型定义文件的文件名需要以 .def.cbml 结尾."),
@@ -112,11 +117,12 @@ impl TypedefFile {
         let top_scope = ScopeID::new(String::new());
         self.fields_map
             .iter()
-            .filter(|x| x.1.scope == top_scope)
+            .filter(|x| x.1.scope_id == top_scope)
             .map(|x| x.1)
             .collect()
     }
 }
+
 impl TypedefFile {
     fn parse_file(&mut self, path: &str) {
         use std::fs::read_to_string;
@@ -125,8 +131,9 @@ impl TypedefFile {
             Ok(code) => {
                 self.parse_code(&code);
             }
+
             Err(e) => {
-                let e = ParserError {
+                let e = CbmlError {
                     error_code: 0000,
                     file_path: path.to_string(),
                     msg: format!("{:?}", e),
@@ -155,25 +162,6 @@ impl TypedefFile {
         }
 
         self.parse_ast(parser_result.ast);
-    }
-
-    fn get_current_scope_id(&self) -> ScopeID {
-        let mut re = String::new();
-
-        for x in &self._current_scope {
-            re.push_str("::");
-            re.push_str(&x.0);
-        }
-
-        return ScopeID::new(re);
-    }
-
-    fn into_scope(&mut self, scope_id: ScopeID) {
-        self._current_scope.push(scope_id);
-    }
-
-    fn outgoing_scope(&mut self) {
-        let _ = self._current_scope.pop();
     }
 
     fn parse_ast(&mut self, ast: Vec<Stmt>) {
@@ -230,7 +218,7 @@ impl TypedefFile {
     }
 
     fn parse_use(&mut self, use_stmt: UseStmt) {
-        let e = ParserError {
+        let e = CbmlError {
             error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("不能类型定义文件中使用 use 语句."),
@@ -242,7 +230,7 @@ impl TypedefFile {
     }
 
     fn parse_asignment(&mut self, a: AsignmentStmt) {
-        let e = ParserError {
+        let e = CbmlError {
             error_code: 0000,
             file_path: self.file_path.clone(),
             msg: format!("不能在类型定义文件中给用字段赋值."),
@@ -277,7 +265,7 @@ impl TypedefFile {
             name: struct_field_def_stmt.field_name.clone(),
             default_value: struct_field_def_stmt.default.clone(),
             span: span,
-            scope: self.get_current_scope_id(),
+            scope_id: self.get_current_scope_id(),
             type_: info,
             doc: struct_field_def_stmt.doc.map(|x| x.document),
         };
@@ -364,7 +352,7 @@ impl TypedefFile {
             name: enum_field_def.field_name.clone(),
             default_value: None,
             span: enum_field_def.field_name_span.clone(),
-            scope: self.get_current_scope_id(),
+            scope_id: self.get_current_scope_id(),
             type_: info,
             doc: None,
         };
@@ -416,26 +404,17 @@ impl TypedefFile {
         let span = sign.span;
 
         match sign.kind {
-            crate::parser::ast::stmt::TypeSignStmtKind::String => CbmlType {
-                kind: CbmlTypeKind::String,
-            },
-            crate::parser::ast::stmt::TypeSignStmtKind::Number => CbmlType {
-                kind: CbmlTypeKind::Number,
-            },
-            crate::parser::ast::stmt::TypeSignStmtKind::Boolean => CbmlType {
-                kind: CbmlTypeKind::Bool,
-            },
-            crate::parser::ast::stmt::TypeSignStmtKind::Any => CbmlType {
-                kind: CbmlTypeKind::Any,
-            },
-
+            crate::parser::ast::stmt::TypeSignStmtKind::String => CbmlType::String,
+            crate::parser::ast::stmt::TypeSignStmtKind::Number => CbmlType::Number,
+            crate::parser::ast::stmt::TypeSignStmtKind::Boolean => CbmlType::Bool,
+            crate::parser::ast::stmt::TypeSignStmtKind::Any => CbmlType::Any,
             crate::parser::ast::stmt::TypeSignStmtKind::Anonymous(anonymous_type_def_stmt) => {
                 let a = self.parse_anonymous_type_def_stmt(anonymous_type_def_stmt, field_name);
                 return a;
             }
             crate::parser::ast::stmt::TypeSignStmtKind::Custom(_custom_type_namee) => {
                 //
-                let e = ParserError {
+                let e = CbmlError {
                     error_code: 0000,
                     file_path: self.file_path.clone(),
                     msg: format!("unkonw type: {}", _custom_type_namee),
@@ -445,9 +424,7 @@ impl TypedefFile {
                 };
                 self.errors.push(e);
 
-                return CbmlType {
-                    kind: CbmlTypeKind::Any,
-                };
+                return CbmlType::Any;
             }
         }
     }
@@ -469,10 +446,8 @@ impl TypedefFile {
                     // anony_span.clone(),
                 );
 
-                let array_type = CbmlType {
-                    kind: CbmlTypeKind::Array {
-                        inner_type: ty.clone().into(),
-                    },
+                let array_type = CbmlType::Array {
+                    inner_type: ty.clone().into(),
                 };
 
                 return array_type;
@@ -487,10 +462,8 @@ impl TypedefFile {
                 }
                 self.outgoing_scope();
 
-                return CbmlType {
-                    kind: CbmlTypeKind::Enum {
-                        fields: fieasdfasflds,
-                    },
+                return CbmlType::Enum {
+                    fields: fieasdfasflds,
                 };
             }
             crate::parser::ast::stmt::AnonymousTypeDefKind::Struct(struct_field_def_stmts) => {
@@ -506,9 +479,7 @@ impl TypedefFile {
                 }
                 self.outgoing_scope();
 
-                let struct_type = CbmlType {
-                    kind: CbmlTypeKind::Struct { fields: adsfsadf },
-                };
+                let struct_type = CbmlType::Struct { fields: adsfsadf };
 
                 return struct_type;
             }
@@ -516,10 +487,8 @@ impl TypedefFile {
                 // let anony_union_name = self.auto_gen_type_name(field_name);
                 let _anony_union_name: String = String::new();
 
-                let union_type = CbmlType {
-                    kind: CbmlTypeKind::Union {
-                        allowed_values: alowd_values.clone(),
-                    },
+                let union_type = CbmlType::Union {
+                    allowed_values: alowd_values.clone(),
                 };
 
                 return union_type;
@@ -531,10 +500,8 @@ impl TypedefFile {
                     // anony_span.clone(),
                 );
 
-                let optional_type = CbmlType {
-                    kind: CbmlTypeKind::Optional {
-                        inner_type: ty.clone().into(),
-                    },
+                let optional_type = CbmlType::Optional {
+                    inner_type: ty.clone().into(),
                 };
 
                 return optional_type;
@@ -550,5 +517,40 @@ impl TypedefFile {
             TypeDefStmt::EnumDef(enum_def) => self.parse_enum_def(enum_def),
             TypeDefStmt::UnionDef(union_def) => self.parse_union_def(union_def),
         }
+    }
+}
+
+/// scope 相关的函数.
+impl TypedefFile {
+    fn get_current_scope_id(&self) -> ScopeID {
+        let mut re = String::new();
+
+        for x in &self._current_scope {
+            re.push_str("::");
+            re.push_str(&x.0);
+        }
+
+        return ScopeID::new(re);
+    }
+
+    fn into_scope(&mut self, scope_id: ScopeID) {
+        self._current_scope.push(scope_id);
+    }
+
+    fn outgoing_scope(&mut self) {
+        let _ = self._current_scope.pop();
+    }
+}
+
+impl ToCbml for TypedefFile {
+    fn to_cbml(&self, deepth: usize) -> String {
+        let mut re = String::new();
+
+        for (_, x) in &self.fields_map {
+            re.push_str(&x.to_cbml(deepth));
+            re.push_str("\n");
+        }
+
+        return re;
     }
 }

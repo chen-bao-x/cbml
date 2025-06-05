@@ -11,7 +11,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParserError {
+pub struct CbmlError {
     pub file_path: String,
     pub msg: String,
     pub span: Span,
@@ -24,7 +24,7 @@ pub struct ParserError {
     pub error_code: u32,
 }
 
-impl ParserError {
+impl CbmlError {
     pub fn new(file_path: String, message: String, span: Span) -> Self {
         Self {
             file_path: file_path,
@@ -92,7 +92,7 @@ impl ParserError {
     }
 }
 
-impl default::Default for ParserError {
+impl default::Default for CbmlError {
     fn default() -> Self {
         Self {
             error_code: 0000,
@@ -115,8 +115,13 @@ impl default::Default for ParserError {
         }
     }
 }
+impl std::fmt::Display for CbmlError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
 
-impl ParserError {
+impl CbmlError {
     /// 0000
     pub fn err_unknow_error(file_path: String, span: Span) -> Self {
         Self {
@@ -147,7 +152,7 @@ impl ParserError {
     }
 
     /// 0002
-    pub fn err_cannot_find_type(file_path: String, span: Span, type_name: &str) -> ParserError {
+    pub fn err_cannot_find_type(file_path: String, span: Span, type_name: &str) -> CbmlError {
         Self {
             error_code: (0002),
             file_path,
@@ -323,7 +328,7 @@ impl ParserError {
             _ => "",
         };
 
-        ParserError {
+        CbmlError {
             error_code: 0012,
             file_path: file_path,
             msg: format!("{} 不能在 union 中使用.", adf),
@@ -340,7 +345,7 @@ impl ParserError {
         file_path: String,
         default_tok_span: Span,
     ) -> Self {
-        ParserError {
+        CbmlError {
             file_path,
             msg: format!("default 关键字只能用于字段申明时使用."),
             span: default_tok_span,
@@ -354,7 +359,7 @@ impl ParserError {
 
     /// 0014
     pub fn err_unknow_token(file_path: String, tok: Token) -> Self {
-        ParserError {
+        CbmlError {
             error_code: (0014),
             file_path,
             msg: format!("syntax error: unkonow token {:?}", tok.kind),
@@ -393,7 +398,7 @@ impl ParserError {
         use_stmt: &UseStmt,
         def_file_errors_count: usize,
     ) -> Self {
-        ParserError {
+        CbmlError {
             error_code: 0016,
             file_path,
             msg: format!(
@@ -408,7 +413,7 @@ impl ParserError {
 
     /// 0017
     pub fn err_field_def_not_allow_in_here(file_path: String, span: Span) -> Self {
-        ParserError {
+        CbmlError {
             error_code: 0017,
             file_path,
             msg: format!("字段定义在这里是不允许的."),
@@ -416,6 +421,30 @@ impl ParserError {
             note: Some(format!("")),
 
             help: Some(format!("将字段定义移动道 typedef 文件中.")),
+        }
+    }
+
+    /// 0018
+    pub fn err_invalid_character(file_path: String, span: Span, invalid_char: char) -> Self {
+        CbmlError {
+            error_code: 0018,
+            file_path,
+            msg: format!("invalid character `{}`", invalid_char),
+            span,
+            note: None,
+            help: None,
+        }
+    }
+
+    /// 0019
+    pub fn err_root_must_be_struct(file_path: String) -> Self {
+        Self {
+            file_path,
+            msg: format!("root must be struct"),
+            span: Span::empty(),
+            note: None,
+            help: None,
+            error_code: 0019,
         }
     }
 }

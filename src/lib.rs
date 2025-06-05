@@ -1,25 +1,51 @@
-pub mod cbml_project;
+mod cbml_codable;
+
+pub use cbml_codable::*;
 pub mod cbml_data;
-pub mod formater;
+pub use cbml_data::cbml_type::*;
+pub use cbml_data::cbml_value::*;
+pub use cbml_root::*;
+pub mod cbml_project;
 pub mod lexer;
 pub mod parser;
+
+/// 输出为 cbml 源代码.
+pub trait ToCbml {
+    /// 将数据转换为 cbml 源代码.
+    /// deepth -> 缩进深度.
+    fn to_cbml(&self, deepth: usize) -> String;
+}
+
+pub fn from_cbml<T>(cbml_code: &str) -> Result<T, ()>
+where
+    T: CbmlCodable,
+{
+    let f = crate::cbml_project::code_file::CodeFile::new_from("".to_string(), cbml_code);
+    let val = f.to_cbml_value();
+    let result = T::from_cbml_value(val);
+    return result;
+}
+
+pub fn to_cbml<T>(value: T) -> String
+where
+    T: CbmlCodable,
+{
+    value.to_cbml_value().to_cbml(0)
+}
+
+#[allow(dead_code)]
+pub trait ToCbmlType {
+    fn to_cbml_type(&self) -> CbmlType;
+}
+
+/// convert to CbmlValue.
+pub trait ToCbmlValue {
+    fn to_cbml_value(&self) -> CbmlValue;
+}
 
 // fn main() {
 //     tests::test_parser();
 // }
-
-// 在编写时的 错误检查
-// language server
-
-// fn cheack_file() {
-//     fn cheack_typedef() {}
-// }
-
-// 解析 cbml 文件到 编程语言自己的类型 T
-// fn parse<T>() {}
-
-// language server
-// lib
 
 #[allow(dead_code)]
 fn timeit(count: usize, f: fn()) {
@@ -79,7 +105,7 @@ mod tests {
             .unwrap()
             .fields_map
             .iter()
-            .for_each(|ref x| println!("name: {}, scope: {}", x.1.name, x.1.scope.0));
+            .for_each(|ref x| println!("name: {}, scope: {}", x.1.name, x.1.scope_id.0));
 
         println!("asdf.fields");
         asdf.fields
@@ -140,4 +166,64 @@ where
     {
         println!("{}", s.to_string());
     }
+}
+
+use std::collections::HashMap;
+pub trait AndThenTo<'a> {
+    fn cbml_str(&self) -> Option<&'a str>;
+    fn cbml_number(&self) -> Option<f64>;
+    fn cbml_bool(&self) -> Option<bool>;
+    fn cbml_none(&self) -> Option<CbmlNoneValue>;
+    fn cbml_array(&self) -> Option<&'a Vec<CbmlValue>>;
+    fn cbml_struct(&self) -> Option<&'a HashMap<String, CbmlValue>>;
+    fn cbml_enum_field(&self) -> Option<(String, Box<CbmlValue>)>;
+    fn look_up(&self) -> &Self;
+}
+
+// .def.cbml -> rust code
+// typedef_file.to_rust_type()
+
+// rust code -> .def.cbml
+// typedef_file.from_rust_type()
+
+//
+//
+
+// .cbml -> rust data
+// code_file.to::<T>()
+
+// rust data -> .cbml
+// code_file.from::<T>()
+
+struct MyConfigsadfasdfsdaf {
+    string: String,
+    number: f64,
+    boolean: bool,
+    obj: Obj,
+    opt_string: Option<String>,
+    opt_number: Option<f64>,
+    opt_boolean: Option<bool>,
+    opt_obj: Option<Obj>,
+    vec_string: Vec<String>,
+    vec_number: Vec<f64>,
+    vec_boolean: Vec<bool>,
+    vec_obj: Vec<Obj>,
+    // enu:
+}
+
+impl MyConfigsadfasdfsdaf {
+    fn to_cbml() -> String {
+        todo!()
+    }
+    
+    fn from_cbml_file(file_path: &str) {
+        let f = crate::cbml_project::code_file::CodeFile::new(file_path.into());
+
+    }
+
+    fn from_cbml(code: &str) {}
+}
+
+struct Obj {
+    haha_name: String,
 }

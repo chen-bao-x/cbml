@@ -2,7 +2,7 @@ use crate::lexer::token::Token;
 pub use ast::stmt::StmtKind;
 pub use cbml_parser::CbmlParser;
 use cbml_parser::ParserResult;
-use parser_error::ParserError;
+use parser_error::CbmlError;
 
 pub mod ast;
 pub mod cbml_parser;

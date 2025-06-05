@@ -1,6 +1,7 @@
 use "/Users/chenbao/GitHub/cbml/examples/1.def.cbml"
 package = {
     asdf = "sadfsdf"
+
     edition = " 15245"
     version = "0.1.0"
     name = "new"
@@ -87,7 +88,7 @@ sdafdsaf = ""
 asdfdsaf = ""
 opt_number = 1
 sadfdsf = 1
-opt_opt_number = -0x231
+opt_opt_number = -561
 opt_any = none
 opt_boolean = none
 opt_arr_string = none
@@ -102,5 +103,10 @@ sadfdsafdsafds = ""
 opt_struct_2 = none
 adsf = true
 adfsadfasdf = "100"
-
 sadf_34252435 = 2345
+asdfsdaf = {
+    name = ""
+}
+struct = {
+    name = ""
+}

@@ -1,12 +1,23 @@
 // adfsdaf
 
+// asdfasdfdsaf
+
+/* asdfasdf dasf asdf 
+sadf
+sad
+f
+dsaf
+as
+df
+
+
+*/
+asdfsdaf: {
+    /// asdfsadf
+    name: string
+}
 /// # aaa 的文档  
 /// ```cbml
-/// 
-/// 
-/// 
-/// 
-/// 
 /// let a = "32452345";
 /// asdfds: string
 /// name = default
@@ -21,12 +32,8 @@
 /// 
 /// ```
 aaa: number
-package: {
-    asdf: string
-    name: string default "hello"
-    version: string
-    edition: string
-}
+version: string
+edition: string
 asdfadsf: 1 | 2 | 3 
 opt_string: ?string
 opt_number: ?number
@@ -37,8 +44,19 @@ opt_arr_boolean: ?[bool]
 opt_struct: ?{
     name: string
 }
-opt_struct_2: ?{
+struct: {
     name: string
+}
+opt_struct_2: ?{
+    /// asdfasdfsadf
+    /// 
+    /// 
+    /// 
+    /// 
+    /// 
+    /// 
+    name: string
+    /// asdfadsf
     age: number
 }
 opt_union: ?1 | 2 | 3 
@@ -82,38 +100,17 @@ val: {
         age: number
     }
 }
-dependencies: [enum {
-        ssh({
-            name: string
-            git: string
-            branch: string
-        })
-        version({
-            name: string
-            varsion: string
-        })
-    }]
-enum_1: enum {
-    ssh({
-        name: string
-        git: string
-        branch: string
-    })
-}
-enum_2: enum {
-    ssh({
-        name: string
-        git: string
-        branch: string
-        adsfasdf: enum {
-            ssh({
-                name: string
-                git: string
-                branch: string
-            })
-        }
-    })
-}
+name: string
+git: string
+branch: string
+name: string
+varsion: string
+git: string
+branch: string
+git: string
+branch: string
+git: string
+branch: string
 name: string default "hello"
 age: ?number
 haha: {
@@ -132,7 +129,19 @@ sadf_34252435: 2345 | 7890
 sdafdsaf: string
 sadfsdf: string
 fdasdf: string
-// a_123456: 1 | 2 | none | "" | default 
-
+a_123456: 1 | 2 | none | "" 
 adfsadfasdf: string default "100"
 adsf: bool
+enum_1: enum {
+    ssh({
+        name: string
+        git: string
+        branch: string
+    })
+}
+package: {
+    asdf: string
+    edition: string
+    version: string
+    name: string
+}
