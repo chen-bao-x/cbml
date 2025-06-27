@@ -1,4 +1,4 @@
-use super::typedef_file::TypedefFile;
+use super::def_cbml_file::DefCbmlFile;
 use super::types::FieldAsign;
 use super::types::FieldDef;
 use super::types::ScopeID;
@@ -18,11 +18,11 @@ use std::collections::HashSet;
 
 /// 对一个 .cbml 文件的抽象.
 #[derive(Debug, Clone)]
-pub struct CodeFile {
+pub struct CbmlFile {
     /// 这个 .cbml 文件的位置.
     pub file_path: String,
 
-    pub typedef_file: Option<TypedefFile>,
+    pub typedef_file: Option<DefCbmlFile>,
 
     /// top fields and child fields.
     pub fields: Vec<FieldAsign>,
@@ -38,7 +38,7 @@ pub struct CodeFile {
     _current_scope: Vec<ScopeID>,
 }
 
-impl CodeFile {
+impl CbmlFile {
     ///
     pub fn new(file_path: String) -> Self {
         let mut f = Self {
@@ -203,7 +203,7 @@ impl CodeFile {
     }
 }
 
-impl CodeFile {
+impl CbmlFile {
     fn parse_file(&mut self, path: &str) {
         // use crate::parser::cbml_parser::CbmlParser;
         use std::fs::read_to_string;
@@ -320,7 +320,7 @@ impl CodeFile {
             }
         }
 
-        let def_file = TypedefFile::new(use_stmt.get_use_url());
+        let def_file = DefCbmlFile::new(use_stmt.get_use_url());
 
         // 错误检查.
         {
@@ -483,7 +483,7 @@ impl CodeFile {
 }
 
 // error check
-impl CodeFile {
+impl CbmlFile {
     fn check_use(&mut self, use_stmt: &crate::parser::ast::stmt::UseStmt) -> Result<(), ()> {
         // 在 use 语句之前不能有 赋值语句.
         {
@@ -810,7 +810,7 @@ impl CodeFile {
     fn check_struct_field(&mut self) {}
 }
 
-impl ToCbml for CodeFile {
+impl ToCbml for CbmlFile {
     fn to_cbml(&self, deepth: usize) -> String {
         let mut re = String::new();
 
@@ -823,7 +823,7 @@ impl ToCbml for CodeFile {
     }
 }
 
-impl ToCbmlValue for CodeFile {
+impl ToCbmlValue for CbmlFile {
     fn to_cbml_value(&self) -> CbmlValue {
         let mut root: HashMap<String, CbmlValue> = HashMap::new();
 
@@ -837,5 +837,12 @@ impl ToCbmlValue for CodeFile {
         }
 
         return CbmlValue::Struct(root);
+    }
+}
+
+/// 将 .cbml 转换为对应编程语言的数据字面量.
+impl CbmlFile {
+    pub fn generate_rust_data(&self) -> String {
+        todo!()
     }
 }

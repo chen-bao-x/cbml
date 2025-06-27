@@ -1,4 +1,4 @@
-# union 
+# union type
 具体的某几个值.
 
 union(string) naames {

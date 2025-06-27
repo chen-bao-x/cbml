@@ -2,7 +2,8 @@ use crate::ToCbml;
 
 use super::cbml_value::CbmlValue;
 
-
+/// cbml 的类型定义,
+/// .def.cbml
 #[derive(Debug, Clone, PartialEq)]
 pub enum CbmlType {
     /// 这个类型是一个特殊的类型, 用来表示字符串.    

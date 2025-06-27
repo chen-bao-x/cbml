@@ -1,6 +1,8 @@
 use crate::{AndThenTo, ToCbml};
 use std::collections::HashMap;
 
+/// cbml 的值.
+/// .cbml
 #[derive(Debug, Clone, PartialEq)]
 pub enum CbmlValue {
     String(String),

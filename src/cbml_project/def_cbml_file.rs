@@ -12,8 +12,9 @@ use crate::parser::parser_error::CbmlError;
 use crate::{ToCbml, ToCbmlValue};
 use std::collections::HashMap;
 
+/// .def.cbml
 #[derive(Debug, Clone)]
-pub struct TypedefFile {
+pub struct DefCbmlFile {
     pub file_path: String,
 
     /// 所有字段, 包裹子字段.
@@ -28,7 +29,7 @@ pub struct TypedefFile {
     _type_id: usize,
 }
 
-impl TypedefFile {
+impl DefCbmlFile {
     pub fn new(file_path: String) -> Self {
         let mut f = Self {
             file_path: file_path.clone(),
@@ -123,7 +124,7 @@ impl TypedefFile {
     }
 }
 
-impl TypedefFile {
+impl DefCbmlFile {
     fn parse_file(&mut self, path: &str) {
         use std::fs::read_to_string;
 
@@ -521,7 +522,7 @@ impl TypedefFile {
 }
 
 /// scope 相关的函数.
-impl TypedefFile {
+impl DefCbmlFile {
     fn get_current_scope_id(&self) -> ScopeID {
         let mut re = String::new();
 
@@ -542,7 +543,7 @@ impl TypedefFile {
     }
 }
 
-impl ToCbml for TypedefFile {
+impl ToCbml for DefCbmlFile {
     fn to_cbml(&self, deepth: usize) -> String {
         let mut re = String::new();
 
@@ -552,5 +553,12 @@ impl ToCbml for TypedefFile {
         }
 
         return re;
+    }
+}
+
+/// 将 .def.cbml 转换为对应编程语言的类型定义.
+impl DefCbmlFile {
+    pub fn generate_rust_type(&self) -> String {
+        todo!()
     }
 }

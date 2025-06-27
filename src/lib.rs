@@ -1,6 +1,6 @@
 mod cbml_codable;
 
-pub use cbml_codable::*;
+// pub use cbml_codable::*;
 pub mod cbml_data;
 pub use cbml_data::cbml_type::*;
 pub use cbml_data::cbml_value::*;
@@ -9,33 +9,11 @@ pub mod cbml_project;
 pub mod lexer;
 pub mod parser;
 
-/// 输出为 cbml 源代码.
+/// 输出为 .cbml 源代码.
 pub trait ToCbml {
     /// 将数据转换为 cbml 源代码.
     /// deepth -> 缩进深度.
     fn to_cbml(&self, deepth: usize) -> String;
-}
-
-pub fn from_cbml<T>(cbml_code: &str) -> Result<T, ()>
-where
-    T: CbmlCodable,
-{
-    let f = crate::cbml_project::code_file::CodeFile::new_from("".to_string(), cbml_code);
-    let val = f.to_cbml_value();
-    let result = T::from_cbml_value(val);
-    return result;
-}
-
-pub fn to_cbml<T>(value: T) -> String
-where
-    T: CbmlCodable,
-{
-    value.to_cbml_value().to_cbml(0)
-}
-
-#[allow(dead_code)]
-pub trait ToCbmlType {
-    fn to_cbml_type(&self) -> CbmlType;
 }
 
 /// convert to CbmlValue.
@@ -44,6 +22,7 @@ pub trait ToCbmlValue {
 }
 
 // fn main() {
+// lsp
 //     tests::test_parser();
 // }
 
@@ -64,7 +43,7 @@ fn timeit(count: usize, f: fn()) {
 #[cfg(test)]
 mod tests {
 
-    use crate::cbml_project::{code_file::CodeFile, typedef_file::TypedefFile};
+    use crate::cbml_project::{cbml_file::CbmlFile, def_cbml_file::DefCbmlFile};
 
     #[test]
     pub fn test_parser() {
@@ -95,7 +74,7 @@ mod tests {
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
 
-        let asdf = CodeFile::new(path.into());
+        let asdf = CbmlFile::new(path.into());
         asdf.errors.iter().for_each(|x| {
             x.report_error(&code);
         });
@@ -117,7 +96,7 @@ mod tests {
         use std::fs::read_to_string;
         let code = read_to_string(path).unwrap();
 
-        let asdf = TypedefFile::new(path.into());
+        let asdf = DefCbmlFile::new(path.into());
         asdf.errors.iter().for_each(|x| {
             x.report_error(&code);
         });
@@ -180,50 +159,8 @@ pub trait AndThenTo<'a> {
     fn look_up(&self) -> &Self;
 }
 
-// .def.cbml -> rust code
-// typedef_file.to_rust_type()
+// .def.cbml to:
+// rust-type golang-type c-type json ...
 
-// rust code -> .def.cbml
-// typedef_file.from_rust_type()
-
-//
-//
-
-// .cbml -> rust data
-// code_file.to::<T>()
-
-// rust data -> .cbml
-// code_file.from::<T>()
-
-struct MyConfigsadfasdfsdaf {
-    string: String,
-    number: f64,
-    boolean: bool,
-    obj: Obj,
-    opt_string: Option<String>,
-    opt_number: Option<f64>,
-    opt_boolean: Option<bool>,
-    opt_obj: Option<Obj>,
-    vec_string: Vec<String>,
-    vec_number: Vec<f64>,
-    vec_boolean: Vec<bool>,
-    vec_obj: Vec<Obj>,
-    // enu:
-}
-
-impl MyConfigsadfasdfsdaf {
-    fn to_cbml() -> String {
-        todo!()
-    }
-    
-    fn from_cbml_file(file_path: &str) {
-        let f = crate::cbml_project::code_file::CodeFile::new(file_path.into());
-
-    }
-
-    fn from_cbml(code: &str) {}
-}
-
-struct Obj {
-    haha_name: String,
-}
+// .cbml to:
+// rust golang c json ...
